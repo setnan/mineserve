@@ -194,7 +194,7 @@ final class Orders {
         Matcher m = Pattern.compile("(?:trade for|trade|buy me|buy|kjøp meg|kjøp|handle|bytt til deg)\\s+(.{1,40})").matcher(t);
         if (m.matches()) {
             if (hm == null) { tell.accept("I have no home yet (stand at home in the game and say sethome, or give me sethome <x> <y> <z>)."); return true; }
-            if (!core.trade(id, null, hm, m.group(1), false, tell)) { }
+            if (!core.chores.trade(id, null, hm, m.group(1), false, tell)) { }
             return true;
         }
         if (t.matches("trade|trades|handel|handle|kjøp|what can you buy|hva kan du kjøpe")) {
@@ -251,7 +251,7 @@ final class Orders {
             return true;
         }
         m = Pattern.compile("(?:craft|make|lag|lage)\\s+(.{1,40})").matcher(t);
-        if (m.matches()) { core.craft(id, null, hm, m.group(1), false, tell); return true; }
+        if (m.matches()) { core.chores.craft(id, null, hm, m.group(1), false, tell); return true; }
         m = Pattern.compile("(?:collect|collect from|hent alt fra|hent fra)\\s+(.{1,30})").matcher(t);
         Matcher m2 = Helper.COLLECT_WORDS.matcher(t);
         if (m.matches() || m2.matches()) {
@@ -280,7 +280,7 @@ final class Orders {
             return true;
         }
         if (t.matches("(?:tidy|tidy up|sort|sort the chests|rydd|rydd opp|rydd kistene|sorter|sorter kistene)")) {
-            int n = core.tidy(id);
+            int n = core.chores.tidy(id);
             tell.accept(n < 0 ? (hm == null ? "I have no home yet (stand at home in the game and say sethome, or give me sethome <x> <y> <z>)." : "I need at least two chests within 100 blocks of home.")
                     : n == 0 ? "The chests at home are tidy already." : "I tidied the chests at home: " + n + (n == 1 ? " thing" : " things") + " moved to where the rest of its kind is.");
             return true;
@@ -443,7 +443,7 @@ final class Orders {
         Matcher gf = Pattern.compile("(?:get|fetch|bring|grab|hent|ta med)(?: me| meg| us| oss)?(?: (?:some|the|noen|litt|all the|all))? (.+? (?:from|fra) .+)").matcher(t);
         if (gf.matches()) { command(p, ("fetch " + gf.group(1)).split(" ")); return; }
         Matcher mk = Pattern.compile("(?:mine|dig|dig up|grav|grav opp|hent)(?: (?:only|just|bare|kun|some|litt|the|all|all the|alt|all))* ([a-zæøå_ ]+?)(?:,? (?:not|and not|but not|ikke|og ikke|men ikke|here|her|please) .*)?").matcher(t);
-        if (mk.matches() && Helper.mineKind(mk.group(1)) != null) { command(p, ("mine " + mk.group(1).trim()).split(" ")); return; }
+        if (mk.matches() && Chores.mineKind(mk.group(1)) != null) { command(p, ("mine " + mk.group(1).trim()).split(" ")); return; }
         Matcher mfw = Pattern.compile("(?:run |drive |driv |kjør |work (?:at |on )?|jobb (?:på |i |ved )?)?(?:the )?mob ?farm(?:en)?\\b\\s*(.*)").matcher(t);
         if (mfw.matches()) { command(p, mfw.group(1).isEmpty() ? new String[] {"mobfarm"} : ("mobfarm " + mfw.group(1)).split(" ")); return; }
         Matcher pm = Pattern.compile("(?:personality|personlighet)\\b\\s*(.*)|(reset) (?:your )?personality|(nullstill) personlighet(?:en)?").matcher(t);
@@ -471,7 +471,7 @@ final class Orders {
         m = Helper.GIVE_WORDS.matcher(t);
         if (m.matches() && Bukkit.getPlayer(m.group(1)) != null) { command(p, new String[] {"give", m.group(1)}); return; }
         m = Helper.TRADE_WORDS.matcher(t);
-        if (m.matches() && here != null && core.trade(p, here, m.group(1), true)) return;
+        if (m.matches() && here != null && core.chores.trade(p, here, m.group(1), true)) return;
         m = Helper.CALLME_WORDS.matcher(t);
         if (m.matches()) { command(p, ("callme " + clean.substring(clean.length() - m.group(1).length())).split(" ")); return; }
         m = Helper.JOIN_WORDS.matcher(t);
@@ -483,7 +483,7 @@ final class Orders {
         m = Helper.SMELT_WORDS.matcher(t);
         if (m.matches() && here != null && Material.matchMaterial(Helper.slug(m.group(1)).toUpperCase(Locale.ROOT)) != null) { command(p, ("smelt " + m.group(1)).split(" ")); return; }
         m = Helper.CRAFT_WORDS.matcher(t);
-        if (m.matches() && here != null && core.craft(p, here, m.group(1), true)) return;
+        if (m.matches() && here != null && core.chores.craft(p, here, m.group(1), true)) return;
         m = Helper.HELP_WORDS.matcher(t);
         if (m.matches() && Bukkit.getPlayer(m.group(1)) != null) { command(p, new String[] {"help", m.group(1)}); return; }
         m = Helper.SKIN_WORDS.matcher(t);
@@ -617,9 +617,9 @@ final class Orders {
                 if (h != null && sub.equals("passive")) h.w.setTarget(null);
                 Helper.bar(p, sub.equals("passive") ? "Your helper will not fight" : "Your helper fights for you");
             }
-            case "mine" -> core.startMine(p, h, rest);
-            case "farm" -> core.startFarm(p, h);
-            case "fish" -> core.startFish(p, h);
+            case "mine" -> core.chores.startMine(p, h, rest);
+            case "farm" -> core.chores.startFarm(p, h);
+            case "fish" -> core.chores.startFish(p, h);
             case "light" -> Helper.bar(p, toggle(id, "light", false, args) ? "Your helper carries a light" : "Your helper put the light out");
             case "bridge" -> Helper.bar(p, toggle(id, "bridge", false, args) ? "Your helper builds under your feet (look up for steps)" : "No more bridge building");
             case "show" -> {
@@ -692,21 +692,21 @@ final class Orders {
             case "sum" -> core.say(p, core.awayWork.sum(id));
             case "log" -> core.say(p, core.conf.getString(core.path(id, "away.report"), "").isEmpty() ? "Nothing to tell from the last time you were away." : core.conf.getString(core.path(id, "away.report")));
             case "finds" -> core.say(p, core.awayWork.finds(id));
-            case "shear" -> core.woolTrip(p, () -> { });
+            case "shear" -> core.chores.woolTrip(p, () -> { });
             case "tidy" -> {
                 List<Inventory> here = Helper.stores(p.getLocation(), 16);               // the chests where its owner stands, or else those at home
                 Location hm = core.home(id);
                 boolean atHome = hm != null && hm.getWorld() == p.getWorld() && hm.distanceSquared(p.getLocation()) <= Helper.HOME * Helper.HOME;
                 boolean near = here.size() >= 2 && !atHome;
-                int n = near ? core.tidy(here) : core.tidy(id);
+                int n = near ? core.chores.tidy(here) : core.chores.tidy(id);
                 core.say(p, n < 0 ? (here.size() == 1 ? "There is only one chest here, and I" : "I see no chests here, and I") + " need at least two chests within 100 blocks of home to tidy there (say sethome)."
                         : n == 0 ? "The chests " + (near ? "here" : "at home") + " are tidy already."
                         : "Done: " + n + (n == 1 ? " thing" : " things") + " in the chests " + (near ? "here" : "at home") + " moved to where the rest of its kind is."
-                        + (core.tidyStuck > 0 && n >= 0 ? " " + core.tidyStuck + (core.tidyStuck == 1 ? " thing sits" : " things sit") + " in a chest for something else and I found no better chest: an empty chest there would help." : ""));
+                        + (core.chores.tidyStuck > 0 && n >= 0 ? " " + core.chores.tidyStuck + (core.chores.tidyStuck == 1 ? " thing sits" : " things sit") + " in a chest for something else and I found no better chest: an empty chest there would help." : ""));
             }
-            case "repair" -> core.repair(p, h);
-            case "collect" -> core.collect(p, h, rest);
-            case "trade" -> core.trade(p, h, rest, false);
+            case "repair" -> core.chores.repair(p, h);
+            case "collect" -> core.chores.collect(p, h, rest);
+            case "trade" -> core.chores.trade(p, h, rest, false);
             case "give" -> {
                 Player t = args.length < 2 ? null : Bukkit.getPlayer(args[1]);
                 ItemStack it = p.getInventory().getItemInMainHand();
@@ -795,8 +795,8 @@ final class Orders {
                 core.say(p, "I am working with " + t.getName() + "'s helper now. Say stop to get me back.");
                 t.sendMessage(Component.text("<" + core.name(t.getUniqueId()) + "> " + p.getName() + "'s helper " + core.name(id) + " is helping me."));
             }
-            case "craft" -> core.craft(p, h, rest, false);
-            case "smelt" -> core.smelt(p, h, rest);
+            case "craft" -> core.chores.craft(p, h, rest, false);
+            case "smelt" -> core.chores.smelt(p, h, rest);
             case "watch" -> {
                 String a1 = args.length < 2 ? "" : args[1].toLowerCase(Locale.ROOT);
                 if (!Helper.AWAY_JOBS.contains(a1)) {

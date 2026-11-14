@@ -184,7 +184,7 @@ final class Builder {
         String key = thing.toUpperCase(Locale.ROOT).replaceAll("[\\s-]+", "_");
         Material one = key.isEmpty() ? null : Material.matchMaterial(key);
         if (key.equals("BED") || key.equals("SENG") || one != null && one.isItem() && !Bukkit.getRecipesFor(new ItemStack(one)).isEmpty()) {      // one thing, not a building: it is crafted and handed over
-            core.craft(id, p, p != null ? p.getLocation() : null, thing, false, tell);
+            core.chores.craft(id, p, p != null ? p.getLocation() : null, thing, false, tell);
             return true;
         }
         if (sites.containsKey(id)) { tell.accept("I am already at work on a building. Say stop building first."); return true; }

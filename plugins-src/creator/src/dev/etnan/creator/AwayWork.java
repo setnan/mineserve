@@ -193,7 +193,7 @@ final class AwayWork {
                 }
                 core.awayLog(id, "last 10 min (" + (job.equals("home") ? "work" : job) + "): " + (did.isEmpty() ? "nothing done" : String.join(", ", did)) + ". " + (ms + 10_000) / 60_000 + " min in all");
             }
-            if (ms % 300_000 == 0 && ms > 0) core.tidy(id);
+            if (ms % 300_000 == 0 && ms > 0) core.chores.tidy(id);
             core.conf.set(core.path(id, "away.ms"), ms + 10_000);
             changed = true;
         }
@@ -316,7 +316,7 @@ final class AwayWork {
     int awayFish(UUID id, Location hm) {
         Block b = yard(id, hm).water;
         if (b == null || b.getType() != Material.WATER) { core.awayWarn(id, "water", "no open water within 100 blocks of home, so no fishing"); return 0; }
-        Collection<ItemStack> loot = core.fishLoot(b.getLocation());
+        Collection<ItemStack> loot = core.chores.fishLoot(b.getLocation());
         core.awayNote(id, loot);
         int n = core.addToBag(id, loot);
         core.bump(id, "fish", n);
@@ -329,7 +329,7 @@ final class AwayWork {
         if (Helper.count(from, m -> m == Material.BONE_MEAL) < 1) {
             if (Helper.count(from, m -> m == Material.BONE) < 1) return false;
             Helper.take(from, m -> m == Material.BONE, 1);
-            core.hand(id, null, new ItemStack(Material.BONE_MEAL, 3));
+            core.chores.hand(id, null, new ItemStack(Material.BONE_MEAL, 3));
         }
         Helper.take(from, m -> m == Material.BONE_MEAL, 1);
         core.dirty.add(id);
@@ -349,7 +349,7 @@ final class AwayWork {
             if (Helper.SEEDS.containsKey(t) && b.getBlockData() instanceof Ageable a) {
                 if (a.getAge() >= a.getMaximumAge()) {
                     if (n >= 24) continue;
-                    Collection<ItemStack> crop = core.harvest(b);
+                    Collection<ItemStack> crop = core.chores.harvest(b);
                     core.awayNote(id, crop);
                     core.addToBag(id, crop);
                     n++;
