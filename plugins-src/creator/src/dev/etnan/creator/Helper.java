@@ -226,14 +226,25 @@ import org.bukkit.util.Vector;
  * /helper dismiss               send it away (until /helper again)
  * /helper ask <anything>        the same as saying its name and <anything> in chat
  * /helper say <text>            used by the chat bridge: the helper says this to you
+ *
+ * This class is the helper itself: spawning, following, fighting, the bag and gear, home and places, and the
+ * events. The rest lives next to it, each part with a reference back here (core):
+ *   Orders     chat, /helper, orders while the owner is away, settings, the console command
+ *   Chores     work with the owner around: mining, fields, fishing, crafting, smelting, tidying, trading
+ *   AwayWork   the work at home while the owner is logged out
+ *   Explorer   exploring, ore on the way, treasure maps
+ *   Builder    buildings by hand, and taking them down
+ *   Persona    personality, jokes, comments and habits
+ *   Movement   merging, riding, bridges
  */
 final class Helper implements Listener {
-    final Chores chores = new Chores(this);
-    final Persona persona = new Persona(this);
     final Orders orders = new Orders(this);
+    final Chores chores = new Chores(this);
     final AwayWork awayWork = new AwayWork(this);
-    final Builder builder = new Builder(this);
     final Explorer explorer = new Explorer(this);
+    final Builder builder = new Builder(this);
+    final Persona persona = new Persona(this);
+    final Movement movement = new Movement(this);
     static final double DAMAGE = 20;       // per bite/hit: most monsters die in one or two
     static final int HOME = 100;           // chests, furnaces, fields and water this close to home belong to home
     static final int GUARD_RANGE = 16;     // monsters this close to the owner (or the guard post) get attacked
@@ -642,7 +653,7 @@ final class Helper implements Listener {
             p.spawnParticle(Particle.POOF, l, 30, 0.35, 0.7, 0.35, 0.03);
             p.playSound(l, Sound.BLOCK_FIRE_EXTINGUISH, 0.35f, 1.8f);
         }
-        if (h.merged && p != null) { h.gliding = false; p.setGliding(false); ownBody(p); }
+        if (h.merged && p != null) { h.gliding = false; p.setGliding(false); movement.ownBody(p); }
         if (h.ticket != null) h.ticket.removePluginChunkTicket(plugin);
         clearLight(h);
         h.m.eject();
@@ -684,14 +695,14 @@ final class Helper implements Listener {
                 continue;
             }
             if (!h.w.isValid() || !h.m.isValid()) { spawn(p, null); continue; }
-            if (h.merged) autopilot(p, h);
+            if (h.merged) movement.autopilot(p, h);
             if (h.riding) {
-                if (h.m.getPassengers().contains(p)) steer(p, h);
-                else stopRide(h);
+                if (h.m.getPassengers().contains(p)) movement.steer(p, h);
+                else movement.stopRide(h);
             }
             if (tick % 10 == 0) think(p, h);
             if (tick % 5 == 0) light(id, h);
-            if (tick % 2 == 0 && flag(id, "bridge", false)) bridge(p, h);
+            if (tick % 2 == 0 && flag(id, "bridge", false)) movement.bridge(p, h);
             Location l = h.w.getLocation();
             l.setPitch(0);
             Location look = h.sleep ? null : h.stance == Stance.STAY || h.dance > 50 ? p.getEyeLocation() : h.job == Job.FISH && h.cast > 0 ? h.anchor : h.look;
@@ -782,7 +793,7 @@ final class Helper implements Listener {
         heal(p, h, p);
         if (ward != null) heal(p, h, ward);
         var scale = h.m.getAttribute(Attribute.SCALE);                    // the wand's big/small cast on it counts too
-        if (scale != null && Math.abs(scale.getBaseValue() - (h.fit > 0 ? h.fit : size(id))) > 0.01) resize(p, h, scale.getBaseValue(), false);
+        if (scale != null && Math.abs(scale.getBaseValue() - (h.fit > 0 ? h.fit : size(id))) > 0.01) movement.resize(p, h, scale.getBaseValue(), false);
         if (scale != null && !h.merged) {                                  // under a roof it makes itself small enough to stand upright (a head in the ceiling turns it black)
             double want = size(id);
             int free = 0, need = (int) Math.ceil(1.85 * want) + 1;
@@ -811,7 +822,7 @@ final class Helper implements Listener {
         if (flag(id, "torch", false) && tick % 20 == 0) torch(w);
         if (h.merged) {                                                   // the owner is the body now
             h.goal = null;
-            aura(p, h);
+            movement.aura(p, h);
             if (h.job != Job.NONE) chores.work(p, h);
             return;
         }
@@ -930,7 +941,7 @@ final class Helper implements Listener {
             dirty.add(h.errand.id);
             h.errand = null;
         }
-        stopRide(h);
+        movement.stopRide(h);
         endGame(h);
         h.foe = null;
         if (h.ward != null) {
@@ -2171,65 +2182,6 @@ final class Helper implements Listener {
         if (want != null) { want.setType(Material.LIGHT); h.light = want; }
     }
 
-    /** A block from the bag (cobblestone when it has none) where the owner is about to step: under the next step
-     *  when walking straight ahead, as a step up when looking up. Not when looking down, so you can still climb down. */
-    void bridge(Player p, H h) {
-        if (p.isFlying() || p.isGliding() || p.isInsideVehicle() || p.isSwimming() || p.isDead() || dist2(h.w, p.getLocation()) > 24 * 24) return;
-        Location l = p.getLocation();
-        if (l.getPitch() > 40 || !l.clone().subtract(0, 0.1, 0).getBlock().getType().isSolid()) return;    // only with ground under you
-        Vector d = l.getDirection().setY(0);
-        if (d.lengthSquared() < 0.01) return;
-        Block feet = l.getBlock(), ahead = l.clone().add(d.normalize()).getBlock();
-        if (ahead.equals(feet)) return;
-        Block spot = l.getPitch() < -30 ? ahead : ahead.getRelative(BlockFace.DOWN);
-        if (!(spot.isEmpty() || spot.isLiquid())) return;
-        if (l.getPitch() < -30 && !(spot.getRelative(BlockFace.UP).isPassable() && spot.getRelative(0, 2, 0).isPassable())) return;
-        Material m = Material.COBBLESTONE;
-        Inventory bag = bag(p.getUniqueId());
-        for (int i = 0; i < bag.getSize(); i++) {
-            ItemStack it = bag.getItem(i);
-            if (empty(it) || !it.getType().isBlock() || !it.getType().isOccluding() || it.getType().hasGravity()) continue;
-            m = it.getType();
-            it.setAmount(it.getAmount() - 1);
-            bag.setItem(i, it.getAmount() > 0 ? it : null);
-            dirty.add(p.getUniqueId());
-            break;
-        }
-        spot.setType(m);
-        spot.getWorld().playSound(spot.getLocation(), spot.getBlockSoundGroup().getPlaceSound(), 0.7f, 1f);
-        swing(p, h);
-    }
-
-    void startRide(Player p, H h) {
-        release(h);
-        h.w.teleport(p.getLocation());
-        h.m.teleport(p.getLocation());
-        h.w.setAware(false);                                   // no wandering off: the rider steers
-        set(h.w, Attribute.STEP_HEIGHT, 1.1);
-        h.riding = true;
-        if (!h.m.addPassenger(p)) { stopRide(h); say(p, "I can't lift you right now."); return; }
-        bar(p, "Movement keys steer, jump jumps, sprint runs, sneak gets you off");
-    }
-
-    void stopRide(H h) {
-        if (!h.riding) return;
-        h.riding = false;
-        h.w.setAware(true);
-        set(h.w, Attribute.STEP_HEIGHT, 0.6);
-        h.m.eject();
-    }
-
-    void steer(Player p, H h) {
-        Input in = p.getCurrentInput();
-        double yaw = Math.toRadians(p.getYaw());
-        double f = (in.isForward() ? 1 : 0) - (in.isBackward() ? 1 : 0), side = (in.isLeft() ? 1 : 0) - (in.isRight() ? 1 : 0);
-        Vector v = new Vector(-Math.sin(yaw) * f + Math.cos(yaw) * side, 0, Math.cos(yaw) * f + Math.sin(yaw) * side);
-        if (v.lengthSquared() > 0) v.normalize().multiply(in.isSprint() ? 0.8 : 0.45);
-        v.setY(in.isJump() && h.w.isOnGround() ? 0.55 : h.w.getVelocity().getY());
-        h.w.setVelocity(v);
-        h.w.setRotation(p.getYaw(), 0);
-    }
-
     static String direction(Location from, Location to) {
         double dx = to.getX() - from.getX(), dz = to.getZ() - from.getZ();
         String[] names = {"south", "south-west", "west", "north-west", "north", "north-east", "east", "south-east"};
@@ -2330,11 +2282,6 @@ final class Helper implements Listener {
 
     // --- Merged: the helper is inside its owner -------------------------------------------------------------
 
-    boolean merged(Entity e) {
-        H h = helpers.get(e.getUniqueId());
-        return h != null && h.merged;
-    }
-
     double size(UUID id) { return conf.getDouble(path(id, "size"), 1.0); }
 
     /** How many size steps (of 1.5 times) it is away from normal, bigger or smaller: 0 to about 3.4. */
@@ -2348,15 +2295,6 @@ final class Helper implements Listener {
     /** At the smallest size monsters do not notice it. */
     boolean tiny(UUID id) { return size(id) <= 0.26; }
 
-    /** The owner's own speed while merged follows the helper's size too. */
-    void speedBoost(Player p, boolean on) {
-        var a = p.getAttribute(Attribute.MOVEMENT_SPEED);
-        if (a == null) return;
-        a.removeModifier(speedKey);
-        double f = speed(p.getUniqueId()) - 1;
-        if (on && f > 0.01) a.addModifier(new AttributeModifier(speedKey, f, AttributeModifier.Operation.MULTIPLY_SCALAR_1));
-    }
-
     /** What is hunting the helper (or its merged owner) loses track of it. */
     void forget(Player p, H h) {
         for (Entity e : p.getNearbyEntities(40, 20, 40))
@@ -2366,14 +2304,6 @@ final class Helper implements Listener {
 
     /** The size spell: the figure, and the owner too while they are merged. */
     static final double MIN_SIZE = 0.1, MAX_SIZE = 6.0;
-
-    /** Merged: a shining being, with light that drifts around the body (no outline), and the helper's own looks. */
-    void shine(Player p, boolean on) {
-        org.bukkit.scoreboard.Team t = Bukkit.getScoreboardManager().getMainScoreboard().getTeam("helper_shine");
-        if (t != null && t.hasEntry(p.getName())) t.removeEntry(p.getName());
-        p.setGlowing(false);
-        if (on) wearSkin(p, true);
-    }
 
     /** The owner takes the helper's skin (given back by ownBody). A skin from the pack must be signed first: the chat
      *  bridge does that through mineskin.org when the server has a key, and answers with "mergeskin". */
@@ -2394,50 +2324,6 @@ final class Helper implements Listener {
         p.setPlayerProfile(prof);
     }
 
-    void resize(Player p, H h, double v, boolean show) {
-        UUID id = p.getUniqueId();
-        v = Math.max(MIN_SIZE, Math.min(MAX_SIZE, v));
-        if (Math.abs(v - 1.0) < 0.1) v = 1.0;
-        conf.set(path(id, "size"), v);
-        save();
-        h.fit = v;
-        set(h.m, Attribute.SCALE, v);
-        set(h.w, Attribute.MOVEMENT_SPEED, 0.38 * speed(id));
-        if (h.merged) { set(p, Attribute.SCALE, v); speedBoost(p, true); }
-        if (tiny(id)) forget(p, h);
-        if (!show) return;
-        Entity who = h.merged ? p : h.m;
-        p.spawnParticle(Particle.WITCH, who.getLocation().add(0, who.getHeight() / 2, 0), 30, 0.4, 0.6, 0.4, 0);
-        bar(p, String.format(Locale.ROOT, "Size: %.2f× · hits for %.0f · speed +%.0f %%%s", v, damage(id), (speed(id) - 1) * 100,
-                tiny(id) ? " · monsters don't notice " + (h.merged ? "you" : "it") : ""));
-    }
-
-    /** The owner gets their own size back and stops glowing (after a split, a logout or a crash while merged). */
-    void ownBody(Player p) {
-        String k = path(p.getUniqueId(), "ownsize");
-        if (!conf.contains(k)) return;
-        set(p, Attribute.SCALE, conf.getDouble(k, 1.0));
-        speedBoost(p, false);
-        shine(p, false);
-        String ov = conf.getString(path(p.getUniqueId(), "ownskin.value")), os = conf.getString(path(p.getUniqueId(), "ownskin.signature"));
-        conf.set(path(p.getUniqueId(), "ownskin"), null);
-        if (ov != null && p.isOnline()) {
-            com.destroystokyo.paper.profile.PlayerProfile prof = p.getPlayerProfile();
-            prof.setProperty(new com.destroystokyo.paper.profile.ProfileProperty("textures", ov, os));
-            p.setPlayerProfile(prof);
-        }
-        p.setFlySpeed(0.1f);
-        boolean own = conf.getBoolean(path(p.getUniqueId(), "ownflight"));     // had flight already (fly power)
-        conf.set(path(p.getUniqueId(), "ownflight"), null);
-        if (!own && p.getGameMode() != org.bukkit.GameMode.CREATIVE && p.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
-            if (p.isFlying()) p.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 300, 0));   // a soft landing
-            p.setFlying(false);
-            p.setAllowFlight(false);
-        }
-        conf.set(k, null);
-        save();
-    }
-
     void swing(Player p, H h) {
         if (h.merged) p.swingMainHand();
         else h.m.swingMainHand();
@@ -2447,104 +2333,6 @@ final class Helper implements Listener {
     void go(H h, Location to, double speed) {
         if (h.merged) h.goal = to;
         else h.w.getPathfinder().moveTo(to, speed);
-    }
-
-    void merge(Player p, H h) {
-        if (h.merged) { say(p, "We already are one."); return; }
-        release(h);
-        h.merged = true;
-        h.goal = null;
-        h.w.setAware(false);
-        h.w.setTarget(null);
-        h.m.setVisibleByDefault(false);
-        p.hideEntity(plugin, h.w);
-        p.hideEntity(plugin, h.m);
-        var own = p.getAttribute(Attribute.SCALE);
-        conf.set(path(p.getUniqueId(), "ownsize"), own == null ? 1.0 : own.getBaseValue());
-        conf.set(path(p.getUniqueId(), "ownflight"), p.getAllowFlight());
-        save();
-        set(p, Attribute.SCALE, size(p.getUniqueId()));                // the owner takes the helper's size and speed, and shines
-        speedBoost(p, true);
-        if (tiny(p.getUniqueId())) forget(p, h);
-        shine(p, true);
-        Location l = p.getLocation().add(0, 1, 0);
-        p.spawnParticle(Particle.TOTEM_OF_UNDYING, l, 60, 0.4, 0.8, 0.4, 0.3);
-        p.playSound(l, Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.4f);
-        say(p, "We are one now. Nothing can hurt you, and you hit as hard as I do. You can fly: double-tap jump. Tell me what to do and your body does it; move or swing and you are in control again. Say split to let me out.");
-    }
-
-    void split(Player p, H h) {
-        if (!h.merged) { say(p, "We are not merged."); return; }
-        release(h);
-        h.merged = false;
-        h.goal = null;
-        if (h.gliding) { h.gliding = false; p.setGliding(false); }
-        ownBody(p);
-        h.w.setAware(true);
-        h.w.teleport(p.getLocation().add(p.getLocation().getDirection().setY(0).normalize().multiply(-1.5)));
-        h.m.setVisibleByDefault(flag(p.getUniqueId(), "show", false));
-        p.showEntity(plugin, h.w);
-        p.showEntity(plugin, h.m);
-        Location l = h.w.getLocation().add(0, 1, 0);
-        p.spawnParticle(Particle.CLOUD, l, 25, 0.3, 0.6, 0.3, 0.03);
-        p.playSound(l, Sound.BLOCK_BEACON_DEACTIVATE, 0.8f, 1.4f);
-        say(p, "I am out again.");
-    }
-
-    /** The owner takes over from the autopilot. */
-    void control(Player p, H h) {
-        h.job = Job.NONE;
-        h.queue = new ArrayDeque<>();
-        h.goal = null;
-        bar(p, "You are in control again");
-    }
-
-    /** Every tick while merged: the hidden wolf stays on the owner (everything else measures from it), a movement
-     *  key ends the job, and otherwise the owner is walked towards where the job needs them. */
-    void autopilot(Player p, H h) {
-        Location at = p.getLocation();
-        if (h.w.getWorld() != at.getWorld() || h.w.getLocation().distanceSquared(at) > 0.01) h.w.teleport(at);
-        if (!p.getAllowFlight()) p.setAllowFlight(true);                   // merged you fly (the fly power turns it off on world changes)
-        float fly = (float) Math.min(0.3, 0.1 * speed(p.getUniqueId()));
-        if (Math.abs(p.getFlySpeed() - fly) > 0.001) p.setFlySpeed(fly);
-        Input keys = p.getCurrentInput();                                  // sprint forward in the air: glide where you look
-        if (!h.gliding && p.isFlying() && keys.isSprint() && keys.isForward()) {
-            h.gliding = true;
-            p.setFlying(false);
-        }
-        if (h.gliding) {
-            if (!keys.isSprint() || p.isOnGround() || p.isInWater()) {
-                h.gliding = false;
-                p.setGliding(false);
-                if (!p.isOnGround()) p.setFlying(true);                    // back to hovering
-            } else {
-                if (!p.isGliding()) p.setGliding(true);
-                p.setVelocity(at.getDirection().multiply(1.1 * speed(p.getUniqueId())));
-            }
-        }
-        if (h.job == Job.NONE) return;
-        Input in = p.getCurrentInput();
-        if (in.isForward() || in.isBackward() || in.isLeft() || in.isRight()) { control(p, h); return; }
-        if (h.goal == null || h.goal.getWorld() != at.getWorld()) return;
-        Vector d = h.goal.toVector().subtract(at.toVector()).setY(0);
-        if (d.lengthSquared() < 1) return;
-        boolean moved = h.last == null || h.last.getWorld() != at.getWorld() || h.last.distanceSquared(at) > 0.0004;
-        h.still = moved ? 0 : h.still + 1;
-        h.last = at;
-        d.normalize().multiply(0.24);
-        d.setY(h.still > 3 && p.isOnGround() ? 0.42 : p.getVelocity().getY());     // something in the way: jump
-        p.setVelocity(d);
-    }
-
-    /** Merged, monsters within four blocks are struck twice a second (the helper fighting through its owner). */
-    void aura(Player p, H h) {
-        if (!h.defend || flag(p.getUniqueId(), "passive", false) || p.isDead()) return;     // merged, the owner fights for themself unless they say defend
-        for (Entity e : p.getNearbyEntities(4, 3, 4))
-            if (foe(e) && e instanceof LivingEntity le) {
-                le.damage(damage(p.getUniqueId()), p);
-                p.swingMainHand();
-                return;
-            }
     }
 
     /** Without an elytra the server would end the glide at once. */
@@ -2557,12 +2345,12 @@ final class Helper implements Listener {
     @EventHandler
     public void onSwing(PlayerAnimationEvent e) {
         H h = helpers.get(e.getPlayer().getUniqueId());
-        if (h != null && h.merged && h.job != Job.NONE) control(e.getPlayer(), h);
+        if (h != null && h.merged && h.job != Job.NONE) movement.control(e.getPlayer(), h);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onHunger(FoodLevelChangeEvent e) {
-        if (e.getEntity() instanceof Player p && merged(p) && e.getFoodLevel() < p.getFoodLevel()) e.setCancelled(true);
+        if (e.getEntity() instanceof Player p && movement.merged(p) && e.getFoodLevel() < p.getFoodLevel()) e.setCancelled(true);
     }
 
     // --- Gear: what it wears and holds --------------------------------------------------------------------
@@ -2689,7 +2477,7 @@ final class Helper implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onHurt(EntityDamageEvent e) {
         if (e.getEntity() instanceof Player pl) {                       // merged with their helper: as unbreakable as it is
-            if (merged(pl) && e.getCause() != EntityDamageEvent.DamageCause.VOID && e.getCause() != EntityDamageEvent.DamageCause.KILL) {
+            if (movement.merged(pl) && e.getCause() != EntityDamageEvent.DamageCause.VOID && e.getCause() != EntityDamageEvent.DamageCause.KILL) {
                 e.setCancelled(true);
                 pl.setFireTicks(0);
             }
@@ -2708,7 +2496,7 @@ final class Helper implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBite(EntityDamageByEntityEvent e) {
         if (e.getDamager() instanceof Player pl) {                      // merged: the owner hits like the helper (never players)
-            if (!merged(pl) || e.getEntity() instanceof Player || ownerOf(e.getEntity()) != null) return;
+            if (!movement.merged(pl) || e.getEntity() instanceof Player || ownerOf(e.getEntity()) != null) return;
             e.setDamage(Math.max(e.getDamage(), damage(pl.getUniqueId())));
             Location l = e.getEntity().getLocation().add(0, e.getEntity().getHeight() * 0.6, 0);
             l.getWorld().spawnParticle(Particle.SWEEP_ATTACK, l, 1);
@@ -2730,7 +2518,7 @@ final class Helper implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onTarget(EntityTargetEvent e) {
         if (e.getTarget() == null) return;
-        UUID hunted = e.getTarget() instanceof Player pl ? (merged(pl) ? pl.getUniqueId() : null) : ownerOf(e.getTarget());
+        UUID hunted = e.getTarget() instanceof Player pl ? (movement.merged(pl) ? pl.getUniqueId() : null) : ownerOf(e.getTarget());
         if (hunted != null && tiny(hunted) && ownerOf(e.getEntity()) == null) { e.setCancelled(true); return; }   // too small to notice
         UUID owner = ownerOf(e.getEntity());
         if (owner == null) return;
@@ -2906,7 +2694,7 @@ final class Helper implements Listener {
         H h = helpers.get(id);
         if (h == null || !flag(id, "watch", false)) { despawn(id, true); return; }
         for (String k : List.of("ms", "fish", "crops", "sown", "meal", "fed", "meat", "wool", "smelted", "mined", "explored", "xp", "eggs", "chicks", "goldchicks", "mobs", "sorted", "full", "why", "finds")) conf.set(path(id, "away." + k), null);    // a new time away
-        if (h.merged) split(p, h);                             // on watch: it stays behind and guards home
+        if (h.merged) movement.split(p, h);                             // on watch: it stays behind and guards home
         release(h);
         Location post = home(id) != null ? home(id) : h.w.getLocation();
         h.stance = Stance.GUARD;
@@ -2948,7 +2736,7 @@ final class Helper implements Listener {
     public void onJoin(PlayerJoinEvent e) {
         Player p = e.getPlayer();
         conf.set(path(p.getUniqueId(), "ownskin"), null);      // a login brings their own skin back by itself
-        ownBody(p);                                            // the server stopped while they were merged
+        movement.ownBody(p);                                            // the server stopped while they were merged
         if (flag(p.getUniqueId(), "talk", false)) {            // talk mode was on when they left: it still is
             talking.add(p.getUniqueId());
             Bukkit.getScheduler().runTaskLater(plugin, () -> { if (p.isOnline() && talking.contains(p.getUniqueId()))

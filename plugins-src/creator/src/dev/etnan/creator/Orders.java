@@ -571,18 +571,18 @@ final class Orders {
                 core.say(p, "I will look after " + t.getName() + " until you call me back.");
                 t.sendMessage(Component.text("<" + core.name(id) + "> " + p.getName() + " sent me to look after you."));
             }
-            case "big" -> core.resize(p, h, core.size(id) * 1.5, true);
-            case "small" -> core.resize(p, h, core.size(id) / 1.5, true);
-            case "normal" -> core.resize(p, h, 1.0, true);
+            case "big" -> core.movement.resize(p, h, core.size(id) * 1.5, true);
+            case "small" -> core.movement.resize(p, h, core.size(id) / 1.5, true);
+            case "normal" -> core.movement.resize(p, h, 1.0, true);
             case "defend" -> {
                 boolean on = !(args.length > 1 && args[1].equalsIgnoreCase("off"));
                 if (h.merged) { h.defend = on; core.say(p, on ? "I strike what comes near us. Say defend off and the fighting is yours again." : "The fighting is yours again."); }
                 else { core.conf.set(core.path(id, "passive"), !on); core.save(); core.say(p, on ? "I keep the monsters off you." : "I leave the monsters alone."); }
             }
-            case "max" -> core.resize(p, h, core.MAX_SIZE, true);
-            case "min" -> core.resize(p, h, Helper.MIN_SIZE, true);
-            case "merge" -> core.merge(p, h);
-            case "split" -> core.split(p, h);
+            case "max" -> core.movement.resize(p, h, core.MAX_SIZE, true);
+            case "min" -> core.movement.resize(p, h, Helper.MIN_SIZE, true);
+            case "merge" -> core.movement.merge(p, h);
+            case "split" -> core.movement.split(p, h);
             case "", "summon" -> {
                 if (h != null && (sub.isEmpty() || h.merged)) { p.sendMessage(Component.text(USAGE, NamedTextColor.GOLD)); return; }
                 core.conf.set(core.path(id, "active"), true);
@@ -643,7 +643,7 @@ final class Orders {
             case "unload" -> core.unload(p, h, false);
             case "fetch" -> core.fetch(p, h, rest, false);
             case "find" -> core.find(p, rest, false);
-            case "ride" -> core.startRide(p, h);
+            case "ride" -> core.movement.startRide(p, h);
             case "torch" -> Helper.bar(p, toggle(id, "torch", false, args) ? "Your helper puts torches where it is dark" : "No more torches");
             case "pickup" -> Helper.bar(p, toggle(id, "pickup", true, args) ? "Your helper picks things up" : "Your helper leaves things on the ground");
             case "talk" -> {
