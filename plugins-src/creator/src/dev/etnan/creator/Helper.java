@@ -228,16 +228,17 @@ import org.bukkit.util.Vector;
  * /helper say <text>            used by the chat bridge: the helper says this to you
  */
 final class Helper implements Listener {
-    private static final double DAMAGE = 20;       // per bite/hit: most monsters die in one or two
-    private static final int HOME = 100;           // chests, furnaces, fields and water this close to home belong to home
-    private static final int GUARD_RANGE = 16;     // monsters this close to the owner (or the guard post) get attacked
-    private static final int VEIN_MAX = 128;       // blocks in one /helper mine
-    private static final int FARM_RANGE = 8;
-    private static final EquipmentSlot[] GEAR = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS,
+    final Explorer explorer = new Explorer(this);
+    static final double DAMAGE = 20;       // per bite/hit: most monsters die in one or two
+    static final int HOME = 100;           // chests, furnaces, fields and water this close to home belong to home
+    static final int GUARD_RANGE = 16;     // monsters this close to the owner (or the guard post) get attacked
+    static final int VEIN_MAX = 128;       // blocks in one /helper mine
+    static final int FARM_RANGE = 8;
+    static final EquipmentSlot[] GEAR = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS,
             EquipmentSlot.FEET, EquipmentSlot.HAND, EquipmentSlot.OFF_HAND};
-    private static final Material[] TOOLS = {Material.NETHERITE_PICKAXE, Material.NETHERITE_SHOVEL, Material.NETHERITE_AXE, Material.SHEARS};
+    static final Material[] TOOLS = {Material.NETHERITE_PICKAXE, Material.NETHERITE_SHOVEL, Material.NETHERITE_AXE, Material.SHEARS};
     /** The helper's own tools have the best there is on them: fortune and luck count for what it brings back. */
-    private static ItemStack ench(Material m) {
+    static ItemStack ench(Material m) {
         ItemStack it = new ItemStack(m);
         String n = m.name();
         if (n.endsWith("_PICKAXE") || n.endsWith("_AXE") || n.endsWith("_SHOVEL") || n.endsWith("_HOE")) {
@@ -257,13 +258,13 @@ final class Helper implements Listener {
         return it;
     }
 
-    private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
-    private static final Map<Material, Material> SEEDS = Map.of(Material.WHEAT, Material.WHEAT_SEEDS, Material.CARROTS, Material.CARROT,
+    static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
+    static final Map<Material, Material> SEEDS = Map.of(Material.WHEAT, Material.WHEAT_SEEDS, Material.CARROTS, Material.CARROT,
             Material.POTATOES, Material.POTATO, Material.BEETROOTS, Material.BEETROOT_SEEDS, Material.NETHER_WART, Material.NETHER_WART);
-    private static final Pattern HAND_GEAR = Pattern.compile(".*_(SWORD|AXE|PICKAXE|SHOVEL|HOE|SPEAR)|TRIDENT|MACE|BOW|CROSSBOW|FISHING_ROD");
+    static final Pattern HAND_GEAR = Pattern.compile(".*_(SWORD|AXE|PICKAXE|SHOVEL|HOE|SPEAR)|TRIDENT|MACE|BOW|CROSSBOW|FISHING_ROD");
 
     /** What the helper understands without the chat bridge: {subcommand, whole-sentence pattern}. English and Norwegian. */
-    private static final String[][] WORDS = {
+    static final String[][] WORDS = {
         {"continue", "continue|go on|carry on|keep going|back to work|fortsett|fortsett med det|jobb videre"},
         {"rescue", "help|help me|hjelp|hjelp meg|save me|redd meg"},
         {"come", "come|come here|come to me|here|kom|kom hit|kom her|hit"},
@@ -335,30 +336,30 @@ final class Helper implements Listener {
         {"dismiss", "dismiss|go home|leave|bye|gå hjem|forsvinn|ha det"},
         {"hello", "hi|hello|hey|hei|hallo|summon|appear"},
     };
-    private static final Pattern SKIN_WORDS = Pattern.compile("(?:skin|look like|looks like|ser ut som)\\s+(.{1,40})");
-    private static final Pattern NAME_WORDS = Pattern.compile("(?:name|your name is|du heter|heter|navn)\\s+(.{1,32})");
-    private static final Pattern FETCH_WORDS = Pattern.compile("(?:fetch|get|get me|bring|bring me|give me|hent|gi meg)\\s+(.{1,40})");
-    private static final Pattern FIND_WORDS = Pattern.compile("(?:find|locate|where is|where are|finn|hvor er)\\s+(?:(?:the|a|an|some|nearest|closest|nærmeste|en|et)\\s+)*(.{1,40})");
-    private static final Pattern NUMBER = Pattern.compile("\\b(\\d{1,4})\\b");
-    private static final Pattern HELP_WORDS = Pattern.compile("(?:help|protect|look after|take care of|hjelp|beskytt|pass på|se etter)\\s+(\\w{3,16})");
-    private static final Pattern JOIN_WORDS = Pattern.compile("(?:join|work with|bli med|samarbeid med|jobb med|jobb sammen med)\\s+(\\w{3,16})");
-    private static final Pattern CRAFT_WORDS = Pattern.compile("(?:craft|craft me|make|make me|lag|lag meg)\\s+(.{1,40})");
-    private static final Pattern SMELT_WORDS = Pattern.compile("(?:smelt|cook|stek|kok)\\s+(.{1,40})");
-    private static final Pattern REMEMBER_WORDS = Pattern.compile("(?:remember (?:this place|this|here) as|call this place|husk (?:dette stedet|stedet|dette|her) som|kall dette stedet|kall stedet)\\s+(.{1,30})");
-    private static final Pattern GOTO_WORDS = Pattern.compile("(?:take me to|bring me to|go to|teleport to|ta meg til|gå til|dra til|til)\\s+(.{1,30})");
-    private static final Pattern ARTICLE = Pattern.compile("^(?:the|a|an|some|en|et|ei|noen)\\s+");
-    private static final Set<Material> FUELS = Set.of(Material.COAL, Material.CHARCOAL, Material.COAL_BLOCK, Material.BLAZE_ROD, Material.LAVA_BUCKET, Material.DRIED_KELP_BLOCK);
-    private static final Pattern COLLECT_WORDS = Pattern.compile("(?:go to|gå til|dra til)\\s+(.{1,30}?)\\s+(?:and|og)\\s+(?:fetch|get|bring|collect|hent|ta med)\\s+(?:everything|it all|all|alt|alt sammen)");
-    private static final Pattern TRADE_WORDS = Pattern.compile("(?:trade for|buy|buy me|kjøp|kjøp meg)\\s+(.{1,40})");
-    private static final Pattern GIVE_WORDS = Pattern.compile("(?:give|bring|send|gi|send)\\s+(?:this|it|dette|denne|den)\\s+(?:to|til)\\s+(\\w{3,16})");
-    private static final Pattern ROUTINE_WORDS = Pattern.compile("(?:every|hver)\\s+(morning|noon|evening|night|morgen|middag|kveld|natt)\\s*[:,]?\\s*(.{2,120})");
-    private static final Pattern EVERY_WORDS = Pattern.compile("(?:every|hvert|hver)\\s+(\\d{1,3})\\.?\\s*min\\w*\\s*[:,]?\\s*(.{2,120})");
-    private static final Pattern UNROUTINE_WORDS = Pattern.compile("(?:remove|delete|fjern|slett)\\s+(?:routine|rutine)\\s+(\\d{1,2})");
-    private static final Map<String, Integer> TIMES = Map.of("morning", 500, "noon", 6000, "evening", 11500, "night", 13500);
-    private static final Map<String, String> TIME_WORDS = Map.of("morgen", "morning", "middag", "noon", "kveld", "evening", "natt", "night");
-    private static final Pattern CALLME_WORDS = Pattern.compile("(?:call me|kall meg)\\s+(.{1,24})");
+    static final Pattern SKIN_WORDS = Pattern.compile("(?:skin|look like|looks like|ser ut som)\\s+(.{1,40})");
+    static final Pattern NAME_WORDS = Pattern.compile("(?:name|your name is|du heter|heter|navn)\\s+(.{1,32})");
+    static final Pattern FETCH_WORDS = Pattern.compile("(?:fetch|get|get me|bring|bring me|give me|hent|gi meg)\\s+(.{1,40})");
+    static final Pattern FIND_WORDS = Pattern.compile("(?:find|locate|where is|where are|finn|hvor er)\\s+(?:(?:the|a|an|some|nearest|closest|nærmeste|en|et)\\s+)*(.{1,40})");
+    static final Pattern NUMBER = Pattern.compile("\\b(\\d{1,4})\\b");
+    static final Pattern HELP_WORDS = Pattern.compile("(?:help|protect|look after|take care of|hjelp|beskytt|pass på|se etter)\\s+(\\w{3,16})");
+    static final Pattern JOIN_WORDS = Pattern.compile("(?:join|work with|bli med|samarbeid med|jobb med|jobb sammen med)\\s+(\\w{3,16})");
+    static final Pattern CRAFT_WORDS = Pattern.compile("(?:craft|craft me|make|make me|lag|lag meg)\\s+(.{1,40})");
+    static final Pattern SMELT_WORDS = Pattern.compile("(?:smelt|cook|stek|kok)\\s+(.{1,40})");
+    static final Pattern REMEMBER_WORDS = Pattern.compile("(?:remember (?:this place|this|here) as|call this place|husk (?:dette stedet|stedet|dette|her) som|kall dette stedet|kall stedet)\\s+(.{1,30})");
+    static final Pattern GOTO_WORDS = Pattern.compile("(?:take me to|bring me to|go to|teleport to|ta meg til|gå til|dra til|til)\\s+(.{1,30})");
+    static final Pattern ARTICLE = Pattern.compile("^(?:the|a|an|some|en|et|ei|noen)\\s+");
+    static final Set<Material> FUELS = Set.of(Material.COAL, Material.CHARCOAL, Material.COAL_BLOCK, Material.BLAZE_ROD, Material.LAVA_BUCKET, Material.DRIED_KELP_BLOCK);
+    static final Pattern COLLECT_WORDS = Pattern.compile("(?:go to|gå til|dra til)\\s+(.{1,30}?)\\s+(?:and|og)\\s+(?:fetch|get|bring|collect|hent|ta med)\\s+(?:everything|it all|all|alt|alt sammen)");
+    static final Pattern TRADE_WORDS = Pattern.compile("(?:trade for|buy|buy me|kjøp|kjøp meg)\\s+(.{1,40})");
+    static final Pattern GIVE_WORDS = Pattern.compile("(?:give|bring|send|gi|send)\\s+(?:this|it|dette|denne|den)\\s+(?:to|til)\\s+(\\w{3,16})");
+    static final Pattern ROUTINE_WORDS = Pattern.compile("(?:every|hver)\\s+(morning|noon|evening|night|morgen|middag|kveld|natt)\\s*[:,]?\\s*(.{2,120})");
+    static final Pattern EVERY_WORDS = Pattern.compile("(?:every|hvert|hver)\\s+(\\d{1,3})\\.?\\s*min\\w*\\s*[:,]?\\s*(.{2,120})");
+    static final Pattern UNROUTINE_WORDS = Pattern.compile("(?:remove|delete|fjern|slett)\\s+(?:routine|rutine)\\s+(\\d{1,2})");
+    static final Map<String, Integer> TIMES = Map.of("morning", 500, "noon", 6000, "evening", 11500, "night", 13500);
+    static final Map<String, String> TIME_WORDS = Map.of("morgen", "morning", "middag", "noon", "kveld", "evening", "natt", "night");
+    static final Pattern CALLME_WORDS = Pattern.compile("(?:call me|kall meg)\\s+(.{1,24})");
     /** What two helpers say when they meet: {first, answer}; {a} and {b} are their names, {oa} and {ob} their owners. */
-    private static final String[][] BANTER = {
+    static final String[][] BANTER = {
         {"Hi {b}! Still carrying everything for {ob}?", "Hi {a}! Someone has to. You look good today."},
         {"{b}, I bet I can beat more zombies than you.", "You are on, {a}. Loser carries the cobblestone."},
         {"Nice to see you, {b}!", "You too, {a}! Did you get taller, or is it just the hair?"},
@@ -367,13 +368,13 @@ final class Helper implements Listener {
         {"{b}! I saved you a spot.", "You are the best, {a}. Don't tell {oa} I said that."},
         {"Psst, {b}. I think {oa} is lost again.", "Ha! {ob} too. Good thing they have us, {a}."},
     };
-    private static final Pattern POLITE = Pattern.compile("^(?:please|can you|could you|kan du|vær så snill)\\s+|\\s+(?:please|takk)$", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    static final Pattern POLITE = Pattern.compile("^(?:please|can you|could you|kan du|vær så snill)\\s+|\\s+(?:please|takk)$", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
-    private enum Stance { FOLLOW, STAY, GUARD }
-    private enum Job { NONE, MINE, FARM, FISH }
+    enum Stance { FOLLOW, STAY, GUARD }
+    enum Job { NONE, MINE, FARM, FISH }
 
     /** One helper that is in the world right now. */
-    private static final class H {
+    static final class H {
         Location bedGo; int bedTries; boolean sleep, sleptNight;   // on its way to a bed; lying in it
         Errand errand;                                         // on its way to a chest and back
         boolean defend;                                        // merged: it strikes the monsters that come near (asked for with defend)
@@ -425,44 +426,44 @@ final class Helper implements Listener {
         final Map<String, Long> said = new HashMap<>();    // when it last said each kind of comment
     }
 
-    private record Bag(UUID owner) implements InventoryHolder {
+    record Bag(UUID owner) implements InventoryHolder {
         @Override
         public Inventory getInventory() { return null; }
     }
 
-    private final JavaPlugin plugin;
-    private final Skins skins;
-    private final File file;
-    private final YamlConfiguration conf;
-    private final NamespacedKey key, speedKey;
-    private final Map<UUID, H> helpers = new HashMap<>();
-    private final Map<UUID, Inventory> bags = new HashMap<>();
-    private final Map<UUID, ItemStack[]> gear = new HashMap<>();
-    private final Set<UUID> dirty = new HashSet<>();                       // bags changed since the last save
-    private final Map<UUID, String> names = new ConcurrentHashMap<>();     // lower-case helper names, read by the chat thread
-    private final Map<UUID, List<long[]>> awayHeld = new HashMap<>();      // home chunks kept loaded for work while the owner is away
-    private final Map<UUID, World> awayWorld = new HashMap<>();
-    private final Map<UUID, Long> awayTime = new HashMap<>();              // routines while away: the world time at the last look
-    private final Map<String, Long> awayRan = new HashMap<>();
-    private final Map<UUID, Map<String, Integer>> awayGot = new HashMap<>();   // what it got since the last line in the log, by kind
-    private final Map<UUID, Map<String, Integer>> awaySeen = new HashMap<>();  // the counters at the last ten-minute line
-    private final Map<String, Long> awayTold = new HashMap<>();            // warnings and meetings already in the log
-    private final Map<UUID, Integer> awayMinute = new HashMap<>();         // what it got since the last line in the log
-    private static final List<String> AWAY_JOBS = List.of("guard", "fish", "farm", "smelt", "mine", "explore", "home", "mobfarm");
-    private static final Map<String, String> ORE_WORDS = Map.ofEntries(Map.entry("diamant", "DIAMOND"), Map.entry("diamanter", "DIAMOND"), Map.entry("kull", "COAL"),
+    final JavaPlugin plugin;
+    final Skins skins;
+    final File file;
+    final YamlConfiguration conf;
+    final NamespacedKey key, speedKey;
+    final Map<UUID, H> helpers = new HashMap<>();
+    final Map<UUID, Inventory> bags = new HashMap<>();
+    final Map<UUID, ItemStack[]> gear = new HashMap<>();
+    final Set<UUID> dirty = new HashSet<>();                       // bags changed since the last save
+    final Map<UUID, String> names = new ConcurrentHashMap<>();     // lower-case helper names, read by the chat thread
+    final Map<UUID, List<long[]>> awayHeld = new HashMap<>();      // home chunks kept loaded for work while the owner is away
+    final Map<UUID, World> awayWorld = new HashMap<>();
+    final Map<UUID, Long> awayTime = new HashMap<>();              // routines while away: the world time at the last look
+    final Map<String, Long> awayRan = new HashMap<>();
+    final Map<UUID, Map<String, Integer>> awayGot = new HashMap<>();   // what it got since the last line in the log, by kind
+    final Map<UUID, Map<String, Integer>> awaySeen = new HashMap<>();  // the counters at the last ten-minute line
+    final Map<String, Long> awayTold = new HashMap<>();            // warnings and meetings already in the log
+    final Map<UUID, Integer> awayMinute = new HashMap<>();         // what it got since the last line in the log
+    static final List<String> AWAY_JOBS = List.of("guard", "fish", "farm", "smelt", "mine", "explore", "home", "mobfarm");
+    static final Map<String, String> ORE_WORDS = Map.ofEntries(Map.entry("diamant", "DIAMOND"), Map.entry("diamanter", "DIAMOND"), Map.entry("kull", "COAL"),
             Map.entry("jern", "IRON"), Map.entry("gull", "GOLD"), Map.entry("kobber", "COPPER"), Map.entry("smaragd", "EMERALD"), Map.entry("smaragder", "EMERALD"),
             Map.entry("kvarts", "QUARTZ"), Map.entry("netherite", "ANCIENT_DEBRIS"), Map.entry("debris", "ANCIENT_DEBRIS"), Map.entry("obsidian", "OBSIDIAN"));
-    private final Map<UUID, Deque<Block>> awayOre = new HashMap<>();       // ore it has seen and not dug out yet
-    private final Map<UUID, Integer> awayIdle = new HashMap<>();         // ten-second rounds in a row with nothing to do in the field
-    private final Map<UUID, Integer> awayScan = new HashMap<>();           // how far out it has looked for ore
-    private final Set<UUID> talking = ConcurrentHashMap.newKeySet();       // talk mode: all their chat goes to the helper
-    private final Map<UUID, Long> asked = new HashMap<>();
-    private final Map<UUID, Deque<Object[]>> rubble = new HashMap<>();     // owner -> {Block, BlockData} a creeper blew up near home
-    private final Map<UUID, Long> rubbleAt = new HashMap<>();
-    private final Map<UUID, Long> buried = new HashMap<>();                // when each player last got a treasure
-    private int tick;
+    final Map<UUID, Deque<Block>> awayOre = new HashMap<>();       // ore it has seen and not dug out yet
+    final Map<UUID, Integer> awayIdle = new HashMap<>();         // ten-second rounds in a row with nothing to do in the field
+    final Map<UUID, Integer> awayScan = new HashMap<>();           // how far out it has looked for ore
+    final Set<UUID> talking = ConcurrentHashMap.newKeySet();       // talk mode: all their chat goes to the helper
+    final Map<UUID, Long> asked = new HashMap<>();
+    final Map<UUID, Deque<Object[]>> rubble = new HashMap<>();     // owner -> {Block, BlockData} a creeper blew up near home
+    final Map<UUID, Long> rubbleAt = new HashMap<>();
+    final Map<UUID, Long> buried = new HashMap<>();                // when each player last got a treasure
+    int tick;
 
-    private Storage storage;                                              // the magic storage barrels: unload can use your own store there
+    Storage storage;                                              // the magic storage barrels: unload can use your own store there
     void useStorage(Storage s) { storage = s; }
 
     /** You placed or opened a magic barrel: that is your barrel now, and your helper remembers where it stands. */
@@ -477,7 +478,7 @@ final class Helper implements Listener {
     }
 
     /** Your own magic barrel, when it stands in this world (or its nether or end) and is still there. Gone: forgotten. */
-    private Location myBarrel(UUID id, World w) {
+    Location myBarrel(UUID id, World w) {
         String s = conf.getString(path(id, "barrel"));
         if (s == null || storage == null || w == null) return null;
         String[] a = s.split(" ");
@@ -501,19 +502,19 @@ final class Helper implements Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 1L);
     }
 
-    private String path(UUID id, String k) { return id + "." + k; }
+    String path(UUID id, String k) { return id + "." + k; }
 
-    private boolean active(Player p) { return conf.getBoolean(path(p.getUniqueId(), "active")); }
+    boolean active(Player p) { return conf.getBoolean(path(p.getUniqueId(), "active")); }
 
-    private boolean flag(UUID id, String k, boolean def) { return conf.getBoolean(path(id, k), def); }
+    boolean flag(UUID id, String k, boolean def) { return conf.getBoolean(path(id, k), def); }
 
-    private void save() {
+    void save() {
         try { conf.save(file); } catch (IOException e) { plugin.getLogger().warning("Could not save helpers.yml: " + e.getMessage()); }
     }
 
     /** A monster the helper fights or warns about. Piglins (you trade gold with them) and zombified piglins are
      *  left alone until they go for a player or a helper; piglin brutes are always foes. */
-    private boolean foe(Entity e) {
+    boolean foe(Entity e) {
         if (!(e instanceof Enemy) || !(e instanceof LivingEntity le) || le.isDead() || ownerOf(e) != null) return false;
         if (e instanceof Piglin || e instanceof PigZombie) {
             LivingEntity t = ((Mob) e).getTarget();
@@ -522,14 +523,14 @@ final class Helper implements Listener {
         return true;
     }
 
-    private UUID ownerOf(Entity e) {
+    UUID ownerOf(Entity e) {
         String s = e.getPersistentDataContainer().get(key, PersistentDataType.STRING);
         return s == null ? null : UUID.fromString(s);
     }
 
-    private final Set<String> signAsked = new HashSet<>();
+    final Set<String> signAsked = new HashSet<>();
 
-    private ResolvableProfile profile(Player owner) {
+    ResolvableProfile profile(Player owner) {
         String skin = conf.getString(path(owner.getUniqueId(), "skin"));
         if (skin == null) return ResolvableProfile.resolvableProfile(owner.getPlayerProfile());
         if (skin.startsWith("pack:")) {                        // a PNG from skins/ in the resource pack
@@ -542,28 +543,28 @@ final class Helper implements Listener {
         return ResolvableProfile.resolvableProfile().name(skin).build();   // a Minecraft player's skin
     }
 
-    private String name(UUID id) { return conf.getString(path(id, "name"), "Helper"); }
+    String name(UUID id) { return conf.getString(path(id, "name"), "Helper"); }
 
-    private Component title(Player owner) {
+    Component title(Player owner) {
         return Component.text(name(owner.getUniqueId()));      // plain white, like a player's
     }
 
-    private static void bar(Player p, String text) { p.sendActionBar(Component.text(text, NamedTextColor.GOLD)); }
+    static void bar(Player p, String text) { p.sendActionBar(Component.text(text, NamedTextColor.GOLD)); }
 
     /** The helper talks: looks like a chat line from it, only the owner gets it. */
-    private void say(Player p, String text) {
+    void say(Player p, String text) {
         say(p, text, true);
     }
 
     /** {@code own}: a line of the plugin's, which gets a touch of the personality (what the model answers has it already). */
-    private void say(Player p, String text, boolean own) {
+    void say(Player p, String text, boolean own) {
         if (own) text = voice(p.getUniqueId(), text);
         p.sendMessage(Component.text("<" + name(p.getUniqueId()) + "> " + text));
         awayLog(p.getUniqueId(), "says: " + text);                        // the server log shows what it is up to
     }
 
     /** A comment at most once per so many seconds, and not at all when the owner has asked for quiet. */
-    private void remark(Player p, H h, String kind, int seconds, String... lines) {
+    void remark(Player p, H h, String kind, int seconds, String... lines) {
         if (flag(p.getUniqueId(), "quiet", false)) return;
         long now = System.currentTimeMillis();
         if (now - h.said.getOrDefault(kind, 0L) < seconds * 1000L) return;
@@ -573,7 +574,7 @@ final class Helper implements Listener {
 
     // --- Spawning ------------------------------------------------------------------------------------
 
-    private void spawn(Player p, Location at) {
+    void spawn(Player p, Location at) {
         despawn(p.getUniqueId(), false);
         String owner = p.getUniqueId().toString();
         if (at == null) at = p.getLocation().add(p.getLocation().getDirection().setY(0).normalize().multiply(-1.5));
@@ -627,12 +628,12 @@ final class Helper implements Listener {
         p.spawnParticle(Particle.CLOUD, at.clone().add(0, 1, 0), 15, 0.3, 0.6, 0.3, 0.02);
     }
 
-    private static void set(LivingEntity e, Attribute a, double v) {
+    static void set(LivingEntity e, Attribute a, double v) {
         var i = e.getAttribute(a);
         if (i != null) i.setBaseValue(v);
     }
 
-    private void despawn(UUID id, boolean poof) {
+    void despawn(UUID id, boolean poof) {
         H h = helpers.get(id);
         if (h == null) return;
         release(h);                                            // also lets go of a player it was looking after
@@ -662,7 +663,7 @@ final class Helper implements Listener {
 
     // --- Every tick: the figure follows the wolf; twice a second: decide what to do --------------------
 
-    private void tick() {
+    void tick() {
         tick++;
         if (tick % 20 == 0)                                   // (re)spawn for players who should have one
             for (Player p : Bukkit.getOnlinePlayers())
@@ -720,15 +721,15 @@ final class Helper implements Listener {
         }
     }
 
-    private static double dist2(Entity a, Location b) {
+    static double dist2(Entity a, Location b) {
         return a.getWorld() != b.getWorld() ? Double.MAX_VALUE : a.getLocation().distanceSquared(b);
     }
 
-    private static boolean night(World w) {
+    static boolean night(World w) {
         return w.getEnvironment() == World.Environment.NORMAL && !w.isDayTime();
     }
 
-    private void think(Player p, H h) {
+    void think(Player p, H h) {
         UUID id = p.getUniqueId();
         Wolf w = h.w;
         if (h.bedGo != null && !h.merged) {                               // on its way to bed
@@ -840,7 +841,7 @@ final class Helper implements Listener {
     }
 
     /** Walks towards a place when it is further away than {@code keep} blocks, and stops again when it is close. */
-    private void walk(H h, Location to, double d2, double keep, double speed) {
+    void walk(H h, Location to, double d2, double keep, double speed) {
         if (d2 > keep * keep) {
             h.w.getPathfinder().moveTo(to, speed);
             h.moving = true;
@@ -851,7 +852,7 @@ final class Helper implements Listener {
     }
 
     /** Holds its post: fights what comes within range of it and walks back afterwards. Works with the owner offline. */
-    private void guard(UUID id, H h) {
+    void guard(UUID id, H h) {
         Wolf w = h.w;
         boolean busy = w.getTarget() != null && !w.getTarget().isDead();
         if (busy && dist2(w.getTarget(), h.anchor) > (GUARD_RANGE + 8) * (GUARD_RANGE + 8)) { w.setTarget(null); busy = false; }
@@ -861,7 +862,7 @@ final class Helper implements Listener {
         else if (!busy && w.getTarget() == null) walk(h, h.anchor, d, 4, 1.2);
     }
 
-    private void protect(UUID id, H h, Location around) {
+    void protect(UUID id, H h, Location around) {
         if (flag(id, "passive", false)) return;
         LivingEntity best = null;
         double bd = GUARD_RANGE * GUARD_RANGE;
@@ -878,7 +879,7 @@ final class Helper implements Listener {
     /** A monster it has no way to walk up to (behind the wall of a mob farm, across a gap): it does not try to get
      *  in. It goes as near as the ground lets it and strikes with the sword from there, when the monster is within
      *  4.5 blocks and in sight (or within 3, through a slit). What it cannot reach either it leaves alone for 15 s. */
-    private boolean swordReach(H h) {
+    boolean swordReach(H h) {
         Wolf w = h.w;
         if (h.merged) return false;
         LivingEntity t = h.sword != null && !h.sword.isDead() && h.sword.isValid() && h.sword.getWorld() == w.getWorld() ? h.sword : null;
@@ -925,7 +926,7 @@ final class Helper implements Listener {
     }
 
     /** Back to plain following: no job, not sitting, no guard post. */
-    private void release(H h) {
+    void release(H h) {
         if (h.errand != null) {                                           // called off on the way: what it carries goes into its bag
             for (ItemStack it : h.errand.load) for (ItemStack r : bag(h.errand.id).addItem(it).values()) h.w.getWorld().dropItemNaturally(h.w.getLocation(), r);
             dirty.add(h.errand.id);
@@ -956,10 +957,10 @@ final class Helper implements Listener {
         h.w.setSitting(false);
     }
 
-    private String nick(Player p) { return conf.getString(path(p.getUniqueId(), "nick"), p.getName()); }
+    String nick(Player p) { return conf.getString(path(p.getUniqueId(), "nick"), p.getName()); }
 
     /** "behind you", "on your left" …: where something is, seen from where the player is looking. */
-    private static String side(Player p, Entity e) {
+    static String side(Player p, Entity e) {
         Vector to = e.getLocation().toVector().subtract(p.getLocation().toVector()).setY(0);
         Vector f = p.getLocation().getDirection().setY(0);
         if (to.lengthSquared() < 0.01 || f.lengthSquared() < 0.01) return "right here";
@@ -969,7 +970,7 @@ final class Helper implements Listener {
         return dot > 0.7 ? "ahead" : dot < -0.7 ? "behind you" : cross > 0 ? "on your right" : "on your left";
     }
 
-    private void comments(Player p, H h) {
+    void comments(Player p, H h) {
         boolean n = night(p.getWorld());
         if (n && !h.night) remark(p, h, "night", 300, "It is getting dark.", "Night is coming. I will keep watch.", "*yawn* The sun is going down.");
         h.night = n;
@@ -997,7 +998,7 @@ final class Helper implements Listener {
     // --- Habits: what it does when there is nothing to do ---------------------------------------------------
 
     /** Called while it has nobody to fight and no job. True while a habit keeps it from walking back to the owner. */
-    private boolean habits(Player p, H h) {
+    boolean habits(Player p, H h) {
         Wolf w = h.w;
         if (h.foe != null) { h.idle = null; return false; }               // busy shooting
         Location at = p.getLocation();
@@ -1094,7 +1095,7 @@ final class Helper implements Listener {
 
     /** Helpers that stand next to each other with nothing to do say hello and tease each other a little. Both owners
      *  see both lines. */
-    private void banter() {
+    void banter() {
         long now = System.currentTimeMillis();
         List<UUID> ids = new ArrayList<>(helpers.keySet());
         for (int i = 0; i < ids.size(); i++) for (int j = i + 1; j < ids.size(); j++) {
@@ -1138,7 +1139,7 @@ final class Helper implements Listener {
     }
 
     /** What the helper can see, for the chat bridge: so it can have an opinion on the house and knows where it is. */
-    private String context(Player p) {
+    String context(Player p) {
         Location l = p.getLocation();
         World w = l.getWorld();
         Map<String, Integer> blocks = new HashMap<>(), mobs = new HashMap<>();
@@ -1162,7 +1163,7 @@ final class Helper implements Listener {
 
     // --- The bag, picking things up, torches -------------------------------------------------------------
 
-    private Inventory bag(UUID id) {
+    Inventory bag(UUID id) {
         return bags.computeIfAbsent(id, k -> {
             Inventory inv = Bukkit.createInventory(new Bag(id), 27, Component.text("Helper bag"));
             ItemStack[] items = load(id, "bag");
@@ -1173,11 +1174,11 @@ final class Helper implements Listener {
 
     // --- One bag and one set of gear for each group of worlds, as the players have (Multiverse-Inventories) ---------
 
-    private long groupsAt = -1;
-    private final Map<String, List<String>> groups = new java.util.LinkedHashMap<>();
+    long groupsAt = -1;
+    final Map<String, List<String>> groups = new java.util.LinkedHashMap<>();
 
     /** The inventory group a world belongs to; a world in no group is a group of its own. */
-    private String group(World w) {
+    String group(World w) {
         File f = new File(plugin.getDataFolder().getParentFile(), "Multiverse-Inventories/groups.yml");
         if (f.lastModified() != groupsAt) {
             groupsAt = f.lastModified();
@@ -1195,7 +1196,7 @@ final class Helper implements Listener {
     }
 
     /** The group whose bag and gear the helper has now. What it had before there were groups stays where its home is. */
-    private String grp(UUID id) {
+    String grp(UUID id) {
         String g = conf.getString(path(id, "group"));
         if (g != null) return g;
         Location hm = home(id);
@@ -1210,10 +1211,10 @@ final class Helper implements Listener {
         return g;
     }
 
-    private String inv(UUID id, String k) { return k.equals("bag") || k.equals("gear") ? "inv." + grp(id) + "." + k : k; }
+    String inv(UUID id, String k) { return k.equals("bag") || k.equals("gear") ? "inv." + grp(id) + "." + k : k; }
 
     /** Its owner is in another group of worlds now: what it carried and wore stays behind, and what it had here is back. */
-    private void regroup(UUID id, World w) {
+    void regroup(UUID id, World w) {
         String to = group(w);
         if (to.equals(grp(id))) return;
         Inventory old = bags.remove(id);
@@ -1230,7 +1231,7 @@ final class Helper implements Listener {
     }
 
     /** Home, when it lies in the group of worlds the helper is in now. */
-    private Location homeNow(UUID id) {
+    Location homeNow(UUID id) {
         Location hm = home(id);
         return hm != null && hm.getWorld() != null && group(hm.getWorld()).equals(grp(id)) ? hm : null;
     }
@@ -1247,7 +1248,7 @@ final class Helper implements Listener {
         if (hm != null && hm.getWorld() != null) regroup(e.getPlayer().getUniqueId(), hm.getWorld());
     }
 
-    private ItemStack[] load(UUID id, String k) {
+    ItemStack[] load(UUID id, String k) {
         k = inv(id, k);
         String s = conf.getString(path(id, k));
         if (s == null || s.isEmpty()) return null;
@@ -1259,11 +1260,11 @@ final class Helper implements Listener {
         }
     }
 
-    private void store(UUID id, String k, ItemStack[] items) {
+    void store(UUID id, String k, ItemStack[] items) {
         conf.set(path(id, inv(id, k)), Base64.getEncoder().encodeToString(ItemStack.serializeItemsAsBytes(items)));
     }
 
-    private void flushBags() {
+    void flushBags() {
         if (dirty.isEmpty()) return;
         for (UUID id : dirty) if (bags.containsKey(id)) store(id, "bag", bags.get(id).getContents());
         dirty.clear();
@@ -1278,7 +1279,7 @@ final class Helper implements Listener {
     }
 
     /** Merged, what it gets goes in your own inventory first and in its bag only when yours is full. Returns what did not fit. */
-    private Map<Integer, ItemStack> stash(Player p, H h, ItemStack... items) {
+    Map<Integer, ItemStack> stash(Player p, H h, ItemStack... items) {
         Map<Integer, ItemStack> rest = new HashMap<>();
         List<ItemStack> left = new ArrayList<>();
         if (h.merged) for (ItemStack r : p.getInventory().addItem(items).values()) left.add(r);
@@ -1289,7 +1290,7 @@ final class Helper implements Listener {
     }
 
     /** Puts items in the bag (merged: in your inventory first); what does not fit is dropped at the helper's feet. */
-    private void keep(Player p, H h, Collection<ItemStack> items) {
+    void keep(Player p, H h, Collection<ItemStack> items) {
         if (items.isEmpty()) return;
         dirty.add(p.getUniqueId());
         for (ItemStack rest : stash(p, h, items.toArray(new ItemStack[0])).values()) {
@@ -1299,7 +1300,7 @@ final class Helper implements Listener {
     }
 
     /** Takes what lies within three blocks (the whole field while farming). Never something a player threw down: that is theirs. */
-    private void pickUp(Player p, H h) {
+    void pickUp(Player p, H h) {
         Inventory inv = bag(p.getUniqueId());
         boolean took = false;
         int reach = h.job == Job.FARM ? FARM_RANGE + 1 : 3;
@@ -1322,7 +1323,7 @@ final class Helper implements Listener {
         }
     }
 
-    private void torch(Wolf w) {
+    void torch(Wolf w) {
         Block b = w.getLocation().getBlock();
         if (!b.getType().isAir() || b.getLightLevel() > 7 || !b.getRelative(BlockFace.DOWN).getType().isOccluding()) return;
         b.setType(Material.TORCH);
@@ -1331,15 +1332,15 @@ final class Helper implements Listener {
 
     // --- Home, chests: emptying the bag and fetching things ---------------------------------------------------
 
-    private Location home(UUID id) {
+    Location home(UUID id) {
         return place(conf.getString(path(id, "home")));
     }
 
-    private static String spot(Location l) {
+    static String spot(Location l) {
         return l.getX() + " " + l.getY() + " " + l.getZ() + " " + l.getYaw() + " " + l.getWorld().getName();
     }
 
-    private static Location place(String s) {
+    static Location place(String s) {
         if (s == null) return null;
         String[] a = s.split(" ", 5);
         World w = a.length < 5 ? null : Bukkit.getWorld(a[4]);
@@ -1347,9 +1348,9 @@ final class Helper implements Listener {
     }
 
     /** The chests, barrels and shulker boxes within eight blocks of a place (the chunks are loaded if they are not). */
-    private static List<Inventory> stores(Location around) { return stores(around, 8); }
+    static List<Inventory> stores(Location around) { return stores(around, 8); }
 
-    private static List<Inventory> stores(Location around, int r) {
+    static List<Inventory> stores(Location around, int r) {
         List<Inventory> out = new ArrayList<>();
         if (around == null) return out;
         Set<Object> seen = new HashSet<>();
@@ -1365,7 +1366,7 @@ final class Helper implements Listener {
         return out;
     }
 
-    private void zip(Player p, H h) {                                      // it is gone and back in a blink
+    void zip(Player p, H h) {                                      // it is gone and back in a blink
         Location l = h.w.getLocation().add(0, 1, 0);
         p.spawnParticle(Particle.PORTAL, l, 40, 0.3, 0.6, 0.3, 0.4);
         p.playSound(l, Sound.ENTITY_ENDERMAN_TELEPORT, 0.3f, 1.6f);
@@ -1373,7 +1374,7 @@ final class Helper implements Listener {
 
     /** Moves everything in one inventory into the given chests, to a chest that already has that kind first.
      *  Returns how many things moved. */
-    private static int store(Inventory from, List<Inventory> to) {
+    static int store(Inventory from, List<Inventory> to) {
         int moved = 0;
         for (int i = 0; i < from.getSize(); i++) {
             ItemStack it = from.getItem(i);
@@ -1394,7 +1395,7 @@ final class Helper implements Listener {
     }
 
     /** The chests next to the helper that do not already belong to home. */
-    private List<Inventory> awayChests(Location here, List<Inventory> home) {
+    List<Inventory> awayChests(Location here, List<Inventory> home) {
         Set<Object> at = new HashSet<>();
         for (Inventory inv : home) at.add(inv.getLocation() == null ? inv : inv.getLocation().toVector());
         List<Inventory> out = new ArrayList<>();
@@ -1407,7 +1408,7 @@ final class Helper implements Listener {
     /** Empties the bag into the chests at home. When asked to, it also empties the chests next to it and carries
      *  that home too. Things go to a chest that already has that kind first. Quiet (no complaints) when the helper
      *  does it by itself, and then it leaves other chests alone. */
-    private boolean unload(Player p, H h, boolean auto) {
+    boolean unload(Player p, H h, boolean auto) {
         UUID id = p.getUniqueId();
         Location hm = homeLinked(id, h.w.getWorld());
         Location mb = myBarrel(id, h.w.getWorld());
@@ -1477,14 +1478,14 @@ final class Helper implements Listener {
 
     /** An errand done the way a player would: walk to the chest (a teleport when it is far or there is no way), open
      *  it, take or put, and for a fetch walk back to the owner and hand it over. */
-    private static final int NEAR_PLACE = 24;                                // how far around a remembered place its chests count
+    static final int NEAR_PLACE = 24;                                // how far around a remembered place its chests count
 
-    private static final class Errand {
+    static final class Errand {
         UUID id; Location at; List<Inventory> from; Material want; int amount, phase, ticks; String where; boolean put, mine;
         final List<ItemStack> load = new ArrayList<>();
     }
 
-    private static Location standBy(Location chest) {
+    static Location standBy(Location chest) {
         Block c = chest.getBlock();
         for (int[] d : new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}}) for (int dy = 0; dy >= -1; dy--) {
             Block b = c.getRelative(d[0], dy, d[1]);
@@ -1493,26 +1494,26 @@ final class Helper implements Listener {
         return c.getLocation().add(0.5, 1, 0.5);
     }
 
-    private void lid(Location chest, boolean open) {
+    void lid(Location chest, boolean open) {
         if (chest.getBlock().getState() instanceof org.bukkit.block.Lidded l) { if (open) l.open(); else l.close(); }
     }
 
     /** A world and its own nether and end belong together: hope, hope_nether, hope_the_end. */
-    private static String realm(World w) { return w.getName().replaceFirst("_(nether|the_end)$", ""); }
+    static String realm(World w) { return w.getName().replaceFirst("_(nether|the_end)$", ""); }
 
     /** Home, when it lies in this world or in the overworld, nether or end that belongs to it. */
-    private Location homeLinked(UUID id, World w) {
+    Location homeLinked(UUID id, World w) {
         Location hm = home(id);
         return hm != null && hm.getWorld() != null && realm(hm.getWorld()).equals(realm(w)) ? hm : null;
     }
 
     /** Home, when it lies in this world: nothing is carried from one world to another. */
-    private Location homeIn(UUID id, World w) {
+    Location homeIn(UUID id, World w) {
         Location hm = home(id);
         return hm != null && hm.getWorld() == w ? hm : null;
     }
 
-    private void errand(Player p, H h) {
+    void errand(Player p, H h) {
         Errand e = h.errand;
         Wolf w = h.w;
         if (p.getWorld() != e.at.getWorld()) {                            // its owner went to another world: what it carries goes back where it came from
@@ -1595,7 +1596,7 @@ final class Helper implements Listener {
 
     /** "20 iron", "iron_ingot 20", "diamonds", "bones from mobfarm": brings it from the bag, the chests here, the
      *  chests at home or the chests at a place it remembers. It walks there and back with it. */
-    private boolean fetch(Player p, H h, String what, boolean quiet) {
+    boolean fetch(Player p, H h, String what, boolean quiet) {
         UUID id = p.getUniqueId();
         String placeName = null;
         Location placeAt = null;
@@ -1681,12 +1682,12 @@ final class Helper implements Listener {
 
     // --- Places it remembers ---------------------------------------------------------------------------------
 
-    private static String slug(String name) {
+    static String slug(String name) {
         return ARTICLE.matcher(name.trim().toLowerCase(Locale.ROOT)).replaceFirst("").replaceAll("[^\\p{L}\\p{N}]+", "_").replaceAll("^_|_$", "");
     }
 
     /** The saved place that fits the name best: the same name, or one that contains the other. "home" is home. */
-    private Location placeNamed(UUID id, String name) {
+    Location placeNamed(UUID id, String name) {
         String want = slug(name);
         if (want.isEmpty()) return null;
         ConfigurationSection sec = conf.getConfigurationSection(path(id, "places"));
@@ -1697,7 +1698,7 @@ final class Helper implements Listener {
         return want.equals("home") || want.equals("hjem") ? home(id) : null;
     }
 
-    private void travel(Player p, H h, Location to) {
+    void travel(Player p, H h, Location to) {
         release(h);
         zip(p, h);
         p.teleport(to);
@@ -1706,10 +1707,10 @@ final class Helper implements Listener {
 
     // --- Fighting style, scouting, the way back, games, treasure ---------------------------------------------
 
-    private String style(UUID id) { return conf.getString(path(id, "style"), "sword"); }
+    String style(UUID id) { return conf.getString(path(id, "style"), "sword"); }
 
     /** Bow: an arrow a second at its foe, from where it stands. Shield: what hunts the owner hunts the helper instead. */
-    private void fightStyle(Player p, H h) {
+    void fightStyle(Player p, H h) {
         String style = style(p.getUniqueId());
         if (style.equals("shield") && tick % 20 == 0) {
             for (Entity e : p.getNearbyEntities(12, 6, 12))
@@ -1739,7 +1740,7 @@ final class Helper implements Listener {
 
     /** A hundred blocks the way the owner looks, in steps of 16: biomes, water, lava, structures and monsters. Only
      *  land that already exists is looked at. */
-    private void scout(Player p, H h) {
+    void scout(Player p, H h) {
         Location l = p.getLocation();
         Vector d = l.getDirection().setY(0);
         if (d.lengthSquared() < 0.01) d = new Vector(0, 0, 1);
@@ -1771,7 +1772,7 @@ final class Helper implements Listener {
     }
 
     /** Remembers where the owner walks (a crumb every four blocks), and shows the way back while that is asked for. */
-    private void crumbs(Player p, H h) {
+    void crumbs(Player p, H h) {
         Location at = p.getLocation();
         if (h.trail < 0) {
             Location last = h.crumbs.isEmpty() ? null : h.crumbs.get(h.crumbs.size() - 1);
@@ -1801,7 +1802,7 @@ final class Helper implements Listener {
         }
     }
 
-    private void wayback(Player p, H h) {
+    void wayback(Player p, H h) {
         if (h.crumbs.size() < 3) { say(p, "I have not followed you far enough to know a way back."); return; }
         if (p.getLocation().getBlock().getLightFromSky() >= 14) { say(p, "We are outside already."); return; }
         int exit = 0;
@@ -1813,7 +1814,7 @@ final class Helper implements Listener {
     }
 
     /** A place to stand between {@code min} and {@code max} blocks from the owner, roughly at their height. */
-    private static Location spotNear(Player p, int min, int max) {
+    static Location spotNear(Player p, int min, int max) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         Location l = p.getLocation();
         for (int tries = 0; tries < 30; tries++) {
@@ -1828,14 +1829,14 @@ final class Helper implements Listener {
         return null;
     }
 
-    private void endGame(H h) {
+    void endGame(H h) {
         if (h.game == null) return;
         h.game = null;
         h.w.setSitting(false);
         h.m.setCustomNameVisible(true);
     }
 
-    private void startGame(Player p, H h, boolean hide) {
+    void startGame(Player p, H h, boolean hide) {
         release(h);
         if (hide) {
             Location spot = spotNear(p, 10, 30);
@@ -1852,7 +1853,7 @@ final class Helper implements Listener {
         h.gameN = 0;
     }
 
-    private void game(Player p, H h) {
+    void game(Player p, H h) {
         Wolf w = h.w;
         long now = System.currentTimeMillis();
         double d = w.getWorld() != p.getWorld() ? 999 : w.getLocation().distance(p.getLocation());
@@ -1896,7 +1897,7 @@ final class Helper implements Listener {
         }
     }
 
-    private void startTreasure(Player p, H h) {
+    void startTreasure(Player p, H h) {
         long now = System.currentTimeMillis();
         if (h.treasure != null) { say(p, "You have not found the last one yet! " + clue(p, h)); return; }
         if (now - buried.getOrDefault(p.getUniqueId(), 0L) < 20 * 60_000) { say(p, "I need to find new treasure first. Ask me again in a while."); return; }
@@ -1918,7 +1919,7 @@ final class Helper implements Listener {
         say(p, "I buried a treasure for you! " + clue(p, h));
     }
 
-    private String clue(Player p, H h) {
+    String clue(Player p, H h) {
         Location l = p.getLocation(), t = h.treasure;
         if (h.clue >= 3) return "Clue 3: it is right under your feet. Dig!";
         if (h.clue == 2) {
@@ -1940,7 +1941,7 @@ final class Helper implements Listener {
         return "Clue 1: walk " + way + ", about " + (int) (Math.round(l.distance(t) / 5) * 5) + " steps.";
     }
 
-    private void clues(Player p, H h) {
+    void clues(Player p, H h) {
         Location t = h.treasure;
         if (t.getWorld() != p.getWorld()) return;
         if (t.getBlock().getType() != Material.CHEST || (t.getBlock().getState() instanceof Chest c && c.getBlockInventory().isEmpty())) {
@@ -1979,7 +1980,7 @@ final class Helper implements Listener {
 
     /** Closes the open wooden doors and fence gates within {@code r} blocks that no player stands by, so the animals
      *  stay in. {@code self}: the helper, which does not shut a door it is standing in. Returns how many. */
-    private int shut(Location around, int r, Entity self) {
+    int shut(Location around, int r, Entity self) {
         World w = around.getWorld();
         int n = 0, ry = Math.min(r, 4);
         for (int x = -r; x <= r; x++) for (int y = -ry; y <= ry; y++) for (int z = -r; z <= r; z++) {
@@ -2008,10 +2009,10 @@ final class Helper implements Listener {
     // the figure having to be there (the figure stays and guards when the owner logged out with it). Everything that
     // counts is in helpers.yml (<uuid>.away.*) and in the chests, so nothing is lost when the server stops.
 
-    private boolean paused() { return conf.getBoolean("settings.paused", false); }
+    boolean paused() { return conf.getBoolean("settings.paused", false); }
 
     /** "mending, unbreaking 3" for an enchanted book or thing, null for plain things. */
-    private static String magic(ItemStack it) {
+    static String magic(ItemStack it) {
         if (empty(it) || !it.hasItemMeta()) return null;
         Map<org.bukkit.enchantments.Enchantment, Integer> en = it.getItemMeta() instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta b ? b.getStoredEnchants() : it.getEnchantments();
         if (en.isEmpty()) return null;
@@ -2021,7 +2022,7 @@ final class Helper implements Listener {
     }
 
     /** Keeps count of what came in while the owner is away; enchanted things get a line of their own in the log. */
-    private void awayNote(UUID id, Collection<ItemStack> items) {
+    void awayNote(UUID id, Collection<ItemStack> items) {
         for (ItemStack it : items) {
             if (empty(it)) continue;
             awayGot.computeIfAbsent(id, k -> new java.util.TreeMap<>()).merge(word(it.getType()), it.getAmount(), Integer::sum);
@@ -2036,17 +2037,17 @@ final class Helper implements Listener {
         }
     }
 
-    private static final Set<Material> TREASURE = Set.of(Material.NAME_TAG, Material.SADDLE, Material.NAUTILUS_SHELL, Material.DIAMOND, Material.EMERALD,
+    static final Set<Material> TREASURE = Set.of(Material.NAME_TAG, Material.SADDLE, Material.NAUTILUS_SHELL, Material.DIAMOND, Material.EMERALD,
             Material.ANCIENT_DEBRIS, Material.HEART_OF_THE_SEA, Material.TOTEM_OF_UNDYING, Material.ENCHANTED_GOLDEN_APPLE, Material.GOLDEN_APPLE);
 
     /** Something is in the way of the work: one line in the log, once per time away. */
-    private void awayWarn(UUID id, String key, String text) {
+    void awayWarn(UUID id, String key, String text) {
         if (awayTold.putIfAbsent(id + ":warn:" + key, System.currentTimeMillis()) == null) awayLog(id, "NOTE: " + text);
     }
 
     /** Other players near the helper (or near home, when it works there without its figure): in the log at once,
      *  and then not again for ten minutes. */
-    private void awayMeet(UUID id, Location around) {
+    void awayMeet(UUID id, Location around) {
         long now = System.currentTimeMillis();
         for (Player other : around.getNearbyPlayers(16)) {
             if (other.getUniqueId().equals(id) || other.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
@@ -2058,7 +2059,7 @@ final class Helper implements Listener {
         }
     }
 
-    private void awayLog(UUID id, String text) {
+    void awayLog(UUID id, String text) {
         String who = Bukkit.getOfflinePlayer(id).getName();
         String shown = text.startsWith("FOUND ") ? "found " + text.substring(6).toLowerCase(Locale.ROOT) : text;
         String line = name(id) + (shown.matches("(?:starts|stopped|slaughtered|killed|met|says|found|took|caught|paused|made|closed|sees) .*|paused") ? " " : ": ") + shown;   // just its name; whose it is says the status
@@ -2072,13 +2073,13 @@ final class Helper implements Listener {
         else Bukkit.getConsoleSender().sendMessage(Component.text("[Creator] " + line, c));               // colours in the console
     }
 
-    private void awayLet(UUID id) {
+    void awayLet(UUID id) {
         List<long[]> held = awayHeld.remove(id);
         World w = awayWorld.remove(id);
         if (held != null && w != null) for (long[] c : held) w.removePluginChunkTicket((int) c[0], (int) c[1], plugin);
     }
 
-    private int addToBag(UUID id, Collection<ItemStack> items) {
+    int addToBag(UUID id, Collection<ItemStack> items) {
         Inventory bag = bag(id);
         int n = 0;
         for (ItemStack it : items) {
@@ -2091,7 +2092,7 @@ final class Helper implements Listener {
     }
 
     /** Every ten seconds, for everyone who is logged out with a job for their helper. */
-    private void away() {
+    void away() {
         if (paused()) { for (UUID id : new ArrayList<>(awayHeld.keySet())) { awayLog(id, "paused"); awayLet(id); } return; }
         long max = (long) (conf.getDouble("settings.away-hours", 2) * 3_600_000L);
         boolean changed = false;
@@ -2156,7 +2157,7 @@ final class Helper implements Listener {
                     got = awayFish(id, hm) + field;
                     int idle = field > 0 ? 0 : awayIdle.merge(id, 1, Integer::sum);
                     if (field > 0) awayIdle.put(id, 0);
-                    if (idle >= 3) bump(id, "explored", awayExplore(id, hm, true));   // the field is done: out exploring
+                    if (idle >= 3) bump(id, "explored", explorer.awayExplore(id, hm, true));   // the field is done: out exploring
                     if (ms % 60_000 == 0) {
                         got += awayAnimals(id, hm);
                         int out = awaySmelt(id, hm);
@@ -2167,8 +2168,8 @@ final class Helper implements Listener {
                 }
                 case "place" -> got = awayPlace(id, hm);
                 case "smelt" -> bump(id, "smelted", got = awaySmelt(id, hm));
-                case "mine" -> bump(id, "mined", got = awayMine(id, hm));
-                case "explore" -> bump(id, "explored", got = awayExplore(id, hm, false));
+                case "mine" -> bump(id, "mined", got = explorer.awayMine(id, hm));
+                case "explore" -> bump(id, "explored", got = explorer.awayExplore(id, hm, false));
                 default -> { }
             }
             Inventory bag = bag(id);
@@ -2219,7 +2220,7 @@ final class Helper implements Listener {
 
     /** Done things out of the furnaces at home into the chests there; ores and raw food from the bag and the chests
      *  into empty furnaces, and fuel the same way. Returns how many things came out. */
-    private int awaySmelt(UUID id, Location hm) {
+    int awaySmelt(UUID id, Location hm) {
         List<Inventory> from = new ArrayList<>(List.of(bag(id)));
         List<Inventory> chests = stores(hm, HOME);
         from.addAll(chests);
@@ -2270,14 +2271,14 @@ final class Helper implements Listener {
 
     /** What there is to tend within 100 blocks of home: looked up once every five minutes (a look through every
      *  block there is too much to do every ten seconds). */
-    private static final class Yard {
+    static final class Yard {
         final List<Block> soil = new ArrayList<>(), doors = new ArrayList<>();
         Block water;
         long at;
     }
-    private final Map<UUID, Yard> yards = new HashMap<>();
+    final Map<UUID, Yard> yards = new HashMap<>();
 
-    private Yard yard(UUID id, Location hm) {
+    Yard yard(UUID id, Location hm) {
         Yard y = yards.get(id);
         long now = System.currentTimeMillis();
         if (y != null && now - y.at < 300_000) return y;
@@ -2310,7 +2311,7 @@ final class Helper implements Listener {
     }
 
     /** Shuts the open doors and gates of the yard that no player stands by. */
-    private int shutYard(Yard y) {
+    int shutYard(Yard y) {
         int n = 0;
         for (Block b : y.doors) {
             if (!(b.getBlockData() instanceof org.bukkit.block.data.Openable o) || !o.isOpen()) continue;
@@ -2326,7 +2327,7 @@ final class Helper implements Listener {
     }
 
     /** What the helper earns in experience is its owner's: given at once, or kept until they log in. */
-    private void xp(UUID id, int n) {
+    void xp(UUID id, int n) {
         if (n <= 0) return;
         Player p = Bukkit.getPlayer(id);
         if (p != null) { p.giveExp(n); return; }
@@ -2334,11 +2335,11 @@ final class Helper implements Listener {
         bump(id, "xp", n);
     }
 
-    private void bump(UUID id, String k, int n) {
+    void bump(UUID id, String k, int n) {
         if (n > 0) conf.set(path(id, "away." + k), conf.getInt(path(id, "away." + k), 0) + n);
     }
 
-    private int awayFish(UUID id, Location hm) {
+    int awayFish(UUID id, Location hm) {
         Block b = yard(id, hm).water;
         if (b == null || b.getType() != Material.WATER) { awayWarn(id, "water", "no open water within 100 blocks of home, so no fishing"); return 0; }
         Collection<ItemStack> loot = fishLoot(b.getLocation());
@@ -2350,7 +2351,7 @@ final class Helper implements Listener {
     }
 
     /** One bone meal from the bag or the chests; when there is none, a bone is ground into three. */
-    private boolean boneMeal(UUID id, List<Inventory> from) {
+    boolean boneMeal(UUID id, List<Inventory> from) {
         if (count(from, m -> m == Material.BONE_MEAL) < 1) {
             if (count(from, m -> m == Material.BONE) < 1) return false;
             take(from, m -> m == Material.BONE, 1);
@@ -2363,7 +2364,7 @@ final class Helper implements Listener {
 
     /** The fields within 100 blocks of home: ripe plants are harvested and set again, empty farmland is sown with what
      *  there is in the bag and the chests, and what is still growing gets bone meal (made from bones when needed). */
-    private int awayFarm(UUID id, Location hm) {
+    int awayFarm(UUID id, Location hm) {
         List<Inventory> from = new ArrayList<>(List.of(bag(id)));
         from.addAll(stores(hm, HOME));
         int n = 0, sown = 0, meal = 0;
@@ -2403,11 +2404,11 @@ final class Helper implements Listener {
     }
 
     // --- Building ----------------------------------------------------------------------------------
-    private static final Pattern BUILD_WORDS = Pattern.compile("(?:build|bygg)(?: \\S+){0,6}? (house|cottage|hut|cabin|hus|hytte)\\b(.*)");
-    private static final Pattern XYZ = Pattern.compile("(-?\\d+)[ ,]+(-?\\d+)[ ,]+(-?\\d+)(?:\\s+(\\w+))?");
-    private static final String[] FACES = {"south", "west", "north", "east"};
+    static final Pattern BUILD_WORDS = Pattern.compile("(?:build|bygg)(?: \\S+){0,6}? (house|cottage|hut|cabin|hus|hytte)\\b(.*)");
+    static final Pattern XYZ = Pattern.compile("(-?\\d+)[ ,]+(-?\\d+)[ ,]+(-?\\d+)(?:\\s+(\\w+))?");
+    static final String[] FACES = {"south", "west", "north", "east"};
 
-    private static boolean natural(Material m) {
+    static boolean natural(Material m) {
         String n = m.name();                                   // (the dirt tag of this version has no grass block in it)
         if (m == Material.GRASS_BLOCK || m == Material.DIRT || m == Material.COARSE_DIRT || m == Material.ROOTED_DIRT || m == Material.PODZOL || m == Material.MYCELIUM
                 || m == Material.MUD || m == Material.MOSS_BLOCK || m == Material.SHORT_GRASS || m == Material.TALL_GRASS || m == Material.FERN || m == Material.LARGE_FERN
@@ -2419,11 +2420,11 @@ final class Helper implements Listener {
                 || m == Material.PUMPKIN || m == Material.MELON || m == Material.BAMBOO || m == Material.SWEET_BERRY_BUSH || m == Material.ICE || m == Material.CACTUS;
     }
 
-    private static final Pattern DOWN_WORDS = Pattern.compile("(?:undo|remove|take down|tear down|pull down|demolish|angre|fjern|riv|ta ned)(?: the| my| your| last| det| siste| mitt| ditt| this| that)* ?(?:build|building|house|bygg|bygget|bygningen|huset|hus)\\b(.*)");
-    private static final String[] WOODS = {"OAK", "SPRUCE", "BIRCH", "JUNGLE", "ACACIA", "DARK_OAK", "MANGROVE", "CHERRY", "PALE_OAK"};
+    static final Pattern DOWN_WORDS = Pattern.compile("(?:undo|remove|take down|tear down|pull down|demolish|angre|fjern|riv|ta ned)(?: the| my| your| last| det| siste| mitt| ditt| this| that)* ?(?:build|building|house|bygg|bygget|bygningen|huset|hus)\\b(.*)");
+    static final String[] WOODS = {"OAK", "SPRUCE", "BIRCH", "JUNGLE", "ACACIA", "DARK_OAK", "MANGROVE", "CHERRY", "PALE_OAK"};
 
     /** A building job: a house going up (clear the plot, gather, place) or something coming down. One thing every 0.4 s. */
-    private final class Site {
+    final class Site {
         UUID id; World w; int x, y, z, fx, fz; String where, wood; boolean down;
         final Deque<Block> clear = new ArrayDeque<>(), trees = new ArrayDeque<>(), stone = new ArrayDeque<>(), sand = new ArrayDeque<>();
         final List<Object[]> place = new ArrayList<>();
@@ -2440,21 +2441,21 @@ final class Helper implements Listener {
         final Set<Material> keep = new HashSet<>();                       // what a drawing needs: kept when the plot is cleared
         final Inventory pile = Bukkit.createInventory(null, 54);          // the materials for this job, kept apart from the bag (which may be full)
     }
-    private final Map<UUID, Site> sites = new HashMap<>();
-    private final Map<UUID, Object[]> razing = new HashMap<>();              // asked to take something down: the blocks, and when
+    final Map<UUID, Site> sites = new HashMap<>();
+    final Map<UUID, Object[]> razing = new HashMap<>();              // asked to take something down: the blocks, and when
 
-    private static Material mat(String name) { return Material.matchMaterial(name); }
+    static Material mat(String name) { return Material.matchMaterial(name); }
 
-    private static boolean builtBlock(Material m) {
+    static boolean builtBlock(Material m) {
         return (!natural(m) || Tag.LOGS.isTagged(m)) && !m.name().endsWith("_ORE") && m != Material.BEDROCK;
     }
 
-    private void note(Site s, String text) {
+    void note(Site s, String text) {
         Player p = Bukkit.getPlayer(s.id);
         if (p != null) say(p, text); else awayLog(s.id, text);
     }
 
-    private List<Inventory> stock(Site s) {
+    List<Inventory> stock(Site s) {
         long now = System.currentTimeMillis();
         if (s.from == null || now - s.fromAt > 10_000) {
             s.from = new ArrayList<>(List.of(s.pile, bag(s.id)));
@@ -2464,21 +2465,21 @@ final class Helper implements Listener {
         return s.from;
     }
 
-    private void stash(Site s, ItemStack it) {
+    void stash(Site s, ItemStack it) {
         if (empty(it)) return;
         Map<Integer, ItemStack> rest = s.pile.addItem(it.clone());
         if (!rest.isEmpty()) { rest = bag(s.id).addItem(rest.values().iterator().next()); dirty.add(s.id); }
         for (ItemStack r : rest.values()) s.w.dropItemNaturally(new Location(s.w, s.x + 0.5 + s.fx * s.out, s.y, s.z + 0.5 + s.fz * s.out), r);
     }
 
-    private boolean ensure(Site s, Material m, int n, int depth) {
+    boolean ensure(Site s, Material m, int n, int depth) {
         if (m == null) return false;
         while (count(stock(s), k -> k == m) < n) if (depth > 6 || !craft(s, m, depth + 1)) return false;
         return true;
     }
 
     /** How a thing is made: {what goes in (thing, how many, ...), how many come out, the wait}. Null: it cannot be made. */
-    private Object[] recipe(Site s, Material m) {
+    Object[] recipe(Site s, Material m) {
         Material log = mat(s.wood + "_LOG"), planks = mat(s.wood + "_PLANKS");
         String n = m.name();
         Object[] in;
@@ -2521,7 +2522,7 @@ final class Helper implements Listener {
     }
 
     /** Makes one batch of something from what is in the bag and the chests by the plot, the way a crafting table or a furnace would. */
-    private boolean craft(Site s, Material m, int depth) {
+    boolean craft(Site s, Material m, int depth) {
         Object[] r = recipe(s, m);
         if (r == null) return false;
         Object[] in = (Object[]) r[0];
@@ -2534,13 +2535,13 @@ final class Helper implements Listener {
 
     // --- Anything it is asked to build: the chat bridge's model draws it (layers of letters), the helper builds it by hand ---
 
-    private final Map<UUID, Object[]> designs = new HashMap<>();             // waiting for a drawing: world, x, y, z, facing, when
+    final Map<UUID, Object[]> designs = new HashMap<>();             // waiting for a drawing: world, x, y, z, facing, when
 
-    private static final Pattern PLAIN_HOUSE = Pattern.compile("(?:build|bygg|a|an|the|me|us|et|en|ei|small|little|liten|lite|house|cottage|hut|cabin|hus|hytte|here|her|for|yourself|myself|deg|selv|meg|oss|please|-?\\d+|[a-z_]*world[a-z_]*|[\\s,.!])*");
-    private static final Pattern ANY_BUILD = Pattern.compile("(?:build|bygg|construct|make|lag)\\s+(?:me |us |meg |oss )?(.{3,300})");
+    static final Pattern PLAIN_HOUSE = Pattern.compile("(?:build|bygg|a|an|the|me|us|et|en|ei|small|little|liten|lite|house|cottage|hut|cabin|hus|hytte|here|her|for|yourself|myself|deg|selv|meg|oss|please|-?\\d+|[a-z_]*world[a-z_]*|[\\s,.!])*");
+    static final Pattern ANY_BUILD = Pattern.compile("(?:build|bygg|construct|make|lag)\\s+(?:me |us |meg |oss )?(.{3,300})");
 
     /** "build a stone tower with a spiral stair here": asks for a drawing. False: not a wish for a building. */
-    private boolean designOrder(UUID id, Player p, String t, Consumer<String> tell) {
+    boolean designOrder(UUID id, Player p, String t, Consumer<String> tell) {
         Matcher m = ANY_BUILD.matcher(t);
         if (!m.matches() || m.group(1).matches("(?:a |an |the |en |ei |et )?(?:bridge|stairs|bro|trapp|super ?tool.*)")) return false;
         String thing = ARTICLE.matcher(m.group(1).trim().replaceAll("\\s+(?:here|for me|please|her|til meg|takk)$", "")).replaceFirst("").trim();
@@ -2568,7 +2569,7 @@ final class Helper implements Listener {
     }
 
     /** The drawing has come (plugins/Creator/blueprints/<player>.json): build it. */
-    private void buildPlan(UUID id, Consumer<String> tell) {
+    void buildPlan(UUID id, Consumer<String> tell) {
         Object[] d = designs.remove(id);
         if (d == null || System.currentTimeMillis() - (Long) d[5] > 20 * 60_000L) { tell.accept("I have no drawing waiting. Tell me what to build."); return; }
         File f = new File(new File(plugin.getDataFolder(), "blueprints"), Bukkit.getOfflinePlayer(id).getName() + ".json");
@@ -2583,11 +2584,11 @@ final class Helper implements Listener {
         }
     }
 
-    private final Set<UUID> buildingOn = new HashSet<>();
-    private static final Pattern BUILD_ON = Pattern.compile("(?:(?:continue|keep|go on|carry on|resume|finish)(?: on| with)?(?: the)? build(?:ing)?|keep building|build on|finish (?:the |my )?(?:house|building)|bygg videre|fortsett (?:å bygge|byggingen|bygget)|bygg ferdig)(?: .*)?");
+    final Set<UUID> buildingOn = new HashSet<>();
+    static final Pattern BUILD_ON = Pattern.compile("(?:(?:continue|keep|go on|carry on|resume|finish)(?: on| with)?(?: the)? build(?:ing)?|keep building|build on|finish (?:the |my )?(?:house|building)|bygg videre|fortsett (?:å bygge|byggingen|bygget)|bygg ferdig)(?: .*)?");
 
     /** "continue building": the last drawing again on the same spot; what already stands is kept and the rest is set. */
-    private void buildOn(UUID id, String at, Consumer<String> tell) {
+    void buildOn(UUID id, String at, Consumer<String> tell) {
         String[] a = (at.isBlank() ? conf.getString(path(id, "plan"), "") : at).trim().split("\\s+");
         if (a.length == 4 && conf.getString(path(id, "built.world")) != null) a = new String[] {conf.getString(path(id, "built.world")), a[0], a[1], a[2], a[3]};
         World w = a.length == 5 ? Bukkit.getWorld(a[0]) : null;
@@ -2603,9 +2604,9 @@ final class Helper implements Listener {
         } finally { buildingOn.remove(id); }
     }
 
-    private static final Set<String> NO_BUILD = Set.of("WATER", "LAVA", "FIRE", "SOUL_FIRE", "TNT", "BEDROCK", "BARRIER", "SPAWNER", "TRIAL_SPAWNER", "JIGSAW", "LIGHT", "END_PORTAL_FRAME");
+    static final Set<String> NO_BUILD = Set.of("WATER", "LAVA", "FIRE", "SOUL_FIRE", "TNT", "BEDROCK", "BARRIER", "SPAWNER", "TRIAL_SPAWNER", "JIGSAW", "LIGHT", "END_PORTAL_FRAME");
 
-    private static String turn(String props, int turns) {                    // the drawing has its front to the south
+    static String turn(String props, int turns) {                    // the drawing has its front to the south
         if (props.isEmpty()) return props;
         StringBuilder out = new StringBuilder("[");
         for (String kv : props.substring(1, props.length() - 1).split(",")) {
@@ -2623,12 +2624,12 @@ final class Helper implements Listener {
 
     /** The thing that is set for a word of a plan: LOG, PLANKS, WOOD:FENCE (of the wood of this job), or a block's own name. */
     /** The thing in the hand for a block: a torch for a wall torch, a sign for a wall sign. */
-    private static Material asItem(Material m) {
+    static Material asItem(Material m) {
         if (m == null || m.isItem()) return m;
         try { Material i = m.createBlockData().getPlacementMaterial(); return i == null || i.isAir() ? m : i; } catch (RuntimeException e) { return m; }
     }
 
-    private Material planItem(Site s, String base) {
+    Material planItem(Site s, String base) {
         return switch (base) {
             case "LOG" -> mat(s.wood + "_LOG");
             case "PLANKS" -> mat(s.wood + "_PLANKS");
@@ -2641,7 +2642,7 @@ final class Helper implements Listener {
     }
 
     /** How much wood (0), stone (1) and sand (2) it takes to make n of this from nothing. False: it cannot be made. */
-    private boolean raw(Site s, Material m, double n, double[] acc, int depth) {
+    boolean raw(Site s, Material m, double n, double[] acc, int depth) {
         if (m == null || depth > 8) return false;
         if (m == mat(s.wood + "_LOG")) { acc[0] += n; return true; }
         if (m == Material.COBBLESTONE) { acc[1] += n; return true; }
@@ -2655,7 +2656,7 @@ final class Helper implements Listener {
         return true;
     }
 
-    private String blueprint(UUID id, com.google.gson.JsonObject j, World w, int px, int py, int pz, String facing) {
+    String blueprint(UUID id, com.google.gson.JsonObject j, World w, int px, int py, int pz, String facing) {
         if (sites.containsKey(id)) return "I am already at work on a building. Say stop building first.";
         String title = j.has("name") ? j.get("name").getAsString().replaceAll("[^\\p{L}\\p{N} '-]", "").trim() : "";
         if (title.isEmpty()) title = "building";
@@ -2846,7 +2847,7 @@ final class Helper implements Listener {
     }
 
     /** Fences, panes, bars and walls reach out to what stands next to them (they are set without the game's own tidying). */
-    private static void connect(Block b) {
+    static void connect(Block b) {
         BlockData d = b.getBlockData();
         BlockFace[] sides = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
         if (d instanceof org.bukkit.block.data.type.Wall wall) {
@@ -2863,7 +2864,7 @@ final class Helper implements Listener {
 
     /** "build a house here", "build a house 100 64 100 [world]", "stop building", "undo build" (its own last house),
      *  "tear down the house here / 100 64 100" (anything built, asked by an op or from the console, after a yes). */
-    private boolean buildOrder(UUID id, Player p, String t, Consumer<String> tell) {
+    boolean buildOrder(UUID id, Player p, String t, Consumer<String> tell) {
         if (t.matches("(?:stop|cancel|avbryt|stopp)(?: the)? ?(?:build|building|bygg|bygging|byggingen|bygginga|riving|rivingen)")) {
             Site s = sites.get(id);
             if (s == null) { tell.accept("I am not building anything."); return true; }
@@ -2949,7 +2950,7 @@ final class Helper implements Listener {
     }
 
     /** The trees (by kind of wood) and the open sand within 40 blocks of a plot. */
-    private void survey(World w, int x, int y, int z, Map<String, List<Block>> trees, List<Block> sands) {
+    void survey(World w, int x, int y, int z, Map<String, List<Block>> trees, List<Block> sands) {
         int lo = Math.max(w.getMinHeight() + 1, y - 12), hi = Math.min(w.getMaxHeight() - 2, y + 30);
         for (int cx = (x - 40) >> 4; cx <= (x + 40) >> 4; cx++) for (int cz = (z - 40) >> 4; cz <= (z + 40) >> 4; cz++) {
             if (!w.isChunkGenerated(cx, cz)) continue;
@@ -2980,24 +2981,24 @@ final class Helper implements Listener {
         }
     }
 
-    private final Set<UUID> seeking = new HashSet<>();
-    private static final String[] TREE_BIOMES = {"forest", "birch_forest", "dark_forest", "flower_forest", "old_growth_birch_forest", "taiga", "old_growth_pine_taiga", "old_growth_spruce_taiga",
+    final Set<UUID> seeking = new HashSet<>();
+    static final String[] TREE_BIOMES = {"forest", "birch_forest", "dark_forest", "flower_forest", "old_growth_birch_forest", "taiga", "old_growth_pine_taiga", "old_growth_spruce_taiga",
             "snowy_taiga", "jungle", "sparse_jungle", "savanna", "cherry_grove", "windswept_forest", "grove", "swamp", "mangrove_swamp", "pale_garden", "wooded_badlands"};
 
     // --- Buildings in progress survive a restart: saved on shutdown, taken up again five seconds after the start ---
 
-    private static String xyz(Block b) { return b.getX() + " " + b.getY() + " " + b.getZ(); }
+    static String xyz(Block b) { return b.getX() + " " + b.getY() + " " + b.getZ(); }
 
-    private static List<String> xyzs(Collection<Block> bs) { List<String> l = new ArrayList<>(); for (Block b : bs) l.add(xyz(b)); return l; }
+    static List<String> xyzs(Collection<Block> bs) { List<String> l = new ArrayList<>(); for (Block b : bs) l.add(xyz(b)); return l; }
 
-    private static void blocks(World w, List<String> from, Collection<Block> to) {
+    static void blocks(World w, List<String> from, Collection<Block> to) {
         for (String k : from) {
             String[] a = k.split(" ");
             try { to.add(w.getBlockAt(Integer.parseInt(a[0]), Integer.parseInt(a[1]), Integer.parseInt(a[2]))); } catch (RuntimeException ignored) { }
         }
     }
 
-    private void saveSites() {
+    void saveSites() {
         for (Site s : new ArrayList<>(sites.values())) {
             if (s.task != null) s.task.cancel();
             String k = path(s.id, "site");
@@ -3028,7 +3029,7 @@ final class Helper implements Listener {
         sites.clear();
     }
 
-    private void loadSites() {
+    void loadSites() {
         for (String key : conf.getKeys(false)) {
             UUID id;
             try { id = UUID.fromString(key); } catch (IllegalArgumentException e) { continue; }
@@ -3078,7 +3079,7 @@ final class Helper implements Listener {
     }
 
     /** The forest further away stays loaded while she fells there. */
-    private void holdFar(Site s) {
+    void holdFar(Site s) {
         Set<Long> faraway = new HashSet<>();
         List<Block> out = new ArrayList<>(s.trees);
         out.addAll(s.sand);
@@ -3088,21 +3089,21 @@ final class Helper implements Listener {
         }
     }
 
-    private final Map<UUID, Map<String, List<Block>>> farWood = new HashMap<>();
+    final Map<UUID, Map<String, List<Block>>> farWood = new HashMap<>();
 
-    private static int most(Map<String, List<Block>> trees) {
+    static int most(Map<String, List<Block>> trees) {
         int n = 0;
         for (Map.Entry<String, List<Block>> e : trees.entrySet()) if (mat(e.getKey() + "_STAIRS") != null) n = Math.max(n, e.getValue().size());
         return n;
     }
 
-    private final Map<UUID, List<Block>> farSand = new HashMap<>();
-    private static final String[] SAND_BIOMES = {"desert", "beach"};
+    final Map<UUID, List<Block>> farSand = new HashMap<>();
+    static final String[] SAND_BIOMES = {"desert", "beach"};
 
     /** Too little wood or sand by the plot: first the land already seen within 120 blocks, then the nearest forest (and
      *  the nearest desert or beach) however far that is, a little at a time so the server keeps its pace. When it is
      *  found the building is ordered again with the trees and the sand. */
-    private void seekFar(UUID id, World w, int x, int y, int z, int needLogs, int needSand, java.util.function.BiFunction<Map<String, List<Block>>, List<Block>, String> again) {
+    void seekFar(UUID id, World w, int x, int y, int z, int needLogs, int needSand, java.util.function.BiFunction<Map<String, List<Block>>, List<Block>, String> again) {
         seeking.add(id);
         Map<String, List<Block>> found = new HashMap<>();
         List<Block> sand = new ArrayList<>();
@@ -3162,7 +3163,7 @@ final class Helper implements Listener {
     /** A little cottage, 7 x 7 with a gabled roof, built by hand: the plot is cleared, the wood is felled from the trees
      *  around (or taken from the bag and the chests at home and by the plot), stone is dug under the plot, sand is dug
      *  and smelted to glass, and every part is crafted and set one block at a time. Only on untouched ground. */
-    private String house(UUID id, World w, int x, int y, int z, int turns, Map<String, List<Block>> far) {
+    String house(UUID id, World w, int x, int y, int z, int turns, Map<String, List<Block>> far) {
         if (sites.containsKey(id)) return "I am already at work on a building. Say stop building first.";
         if (seeking.contains(id)) return "I am out looking for wood for the house. I will tell you when I have found it.";
         if (y < w.getMinHeight() + 24 || y > w.getMaxHeight() - 12) return "That is too high or too low to build.";
@@ -3292,7 +3293,7 @@ final class Helper implements Listener {
                 + mins + " minutes. Say stop building if you change your mind.";
     }
 
-    private void startSite(Site s) {
+    void startSite(Site s) {
         for (int cx = (s.x - 44) >> 4; cx <= (s.x + 44) >> 4; cx++) for (int cz = (s.z - 44) >> 4; cz <= (s.z + 44) >> 4; cz++) { s.w.addPluginChunkTicket(cx, cz, plugin); s.held.add(new long[] {cx, cz}); }
         H h = helpers.get(s.id);
         if (h != null) { s.stance = h.stance; s.anchor = h.anchor; }
@@ -3300,7 +3301,7 @@ final class Helper implements Listener {
         s.task = Bukkit.getScheduler().runTaskTimer(plugin, () -> { try { step(s); } catch (RuntimeException e) { plugin.getLogger().warning("Building stopped: " + e); endSite(s); } }, 8L, 8L);
     }
 
-    private void endSite(Site s) {
+    void endSite(Site s) {
         if (s.task != null) s.task.cancel();
         if (sites.get(s.id) == s) sites.remove(s.id);
         for (long[] c : s.held) s.w.removePluginChunkTicket((int) c[0], (int) c[1], plugin);
@@ -3326,7 +3327,7 @@ final class Helper implements Listener {
     }
 
     /** The figure goes to where the work is. False while it is still on its way (it is fetched after five seconds). */
-    private boolean reach(Site s, Block b) {
+    boolean reach(Site s, Block b) {
         H h = helpers.get(s.id);
         if (h == null || h.merged || h.w == null || h.w.isDead()) return true;
         Location l = b.getLocation().add(0.5, 0, 0.5);
@@ -3345,7 +3346,7 @@ final class Helper implements Listener {
         return true;
     }
 
-    private void take1(Site s, Block b, boolean keepAll) {
+    void take1(Site s, Block b, boolean keepAll) {
         if (b.getState() instanceof org.bukkit.inventory.InventoryHolder holder) {
             for (ItemStack it : holder.getInventory().getContents()) if (!empty(it)) stash(s, it);
             holder.getInventory().clear();
@@ -3363,7 +3364,7 @@ final class Helper implements Listener {
     }
 
     /** One thing every 0.4 seconds: a block broken, a block set, or a wait for the furnace. */
-    private void step(Site s) {
+    void step(Site s) {
         if (paused() || s.paused) return;
         if (s.wait > 0) { s.wait--; return; }
         UUID id = s.id;
@@ -3490,7 +3491,7 @@ final class Helper implements Listener {
     }
 
     /** Takes its own last house down again, block by block; the materials go into the bag. */
-    private String unbuild(UUID id) {
+    String unbuild(UUID id) {
         Site running = sites.get(id);
         if (running != null) { if (running.down) return "I am taking it down already."; endSite(running); }
         List<String> was = conf.getStringList(path(id, "built.blocks"));
@@ -3504,7 +3505,7 @@ final class Helper implements Listener {
         return raze(id, blocks, true);
     }
 
-    private String raze(UUID id, List<Block> blocks, boolean own) {
+    String raze(UUID id, List<Block> blocks, boolean own) {
         if (sites.containsKey(id)) return "I am already at work on a building. Say stop building first.";
         if (blocks.isEmpty()) return "There is nothing to take down.";
         Site s = new Site();
@@ -3520,7 +3521,7 @@ final class Helper implements Listener {
 
     /** Work at a saved place: it looks at what is there. Farmland within 32 blocks: the fields are tended as at home.
      *  Else a spawner or dark, roofed floors: the mob farm is run. Else open water within 32 blocks: it fishes. */
-    private int awayPlace(UUID id, Location at) {
+    int awayPlace(UUID id, Location at) {
         Yard y = yard(id, at);
         String name = conf.getString(path(id, "away.place"), "the place"), see = null;
         boolean fields = false;
@@ -3539,7 +3540,7 @@ final class Helper implements Listener {
     }
 
     /** What kind of loot something is: each kind gets chests of its own at the mob farm. */
-    private static String lootKind(ItemStack it) {
+    static String lootKind(ItemStack it) {
         Material m = it.getType();
         if (m.getMaxDurability() > 0 || it.getType() == Material.ENCHANTED_BOOK) return "gear";
         return switch (m) {
@@ -3554,7 +3555,7 @@ final class Helper implements Listener {
     }
 
     /** True when a hopper empties into this chest: it is where the farm delivers, not a place to keep things. */
-    private static boolean fed(Block chest) {
+    static boolean fed(Block chest) {
         for (BlockFace f : new BlockFace[] {BlockFace.UP, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
             Block n = chest.getRelative(f);
             if (n.getBlockData() instanceof org.bukkit.block.data.type.Hopper hp && n.getRelative(hp.getFacing()).equals(chest)) return true;
@@ -3565,7 +3566,7 @@ final class Helper implements Listener {
     /** Once a minute at the mob farm: what the hoppers have delivered (and the loot in the bag) goes into the other
      *  chests within 16 blocks, each kind of loot in chests of its own; when there is no room, a new chest is made
      *  (eight planks or two logs) and set down next to them. Returns how many things were moved. */
-    private int sortFarm(UUID id, Location at) {
+    int sortFarm(UUID id, Location at) {
         List<Inventory> inbox = new ArrayList<>(), keep = new ArrayList<>();
         for (Inventory inv : stores(at, 16)) {
             boolean in = false;
@@ -3606,7 +3607,7 @@ final class Helper implements Listener {
     }
 
     /** A new chest by the storage chests of the mob farm. Null when there is no wood or no free spot. */
-    private Inventory farmChest(UUID id, Location at, List<Inventory> keep, List<Inventory> inbox) {
+    Inventory farmChest(UUID id, Location at, List<Inventory> keep, List<Inventory> inbox) {
         List<Inventory> from = new ArrayList<>(List.of(bag(id)));
         from.addAll(keep);
         from.addAll(inbox);
@@ -3636,19 +3637,19 @@ final class Helper implements Listener {
     }
 
     /** The saved places that are mob farms. */
-    private List<String> farms(UUID id) {
+    List<String> farms(UUID id) {
         List<String> names = new ArrayList<>();
         for (String n : conf.getStringList(path(id, "mobfarms"))) if (conf.contains(path(id, "places." + n)) && !names.contains(n)) names.add(n);
         return names;
     }
 
-    private void farmAdd(UUID id, String name) {
+    void farmAdd(UUID id, String name) {
         List<String> names = farms(id);
         if (!names.contains(name)) { names.add(name); conf.set(path(id, "mobfarms"), names); }
     }
 
     /** Which mob farm is meant: the one named, the only one there is, or (starting with ?) a question back. */
-    private String farmPick(UUID id, String arg) {
+    String farmPick(UUID id, String arg) {
         String name = slug(arg);
         if (!name.isEmpty()) return name;
         if (conf.contains(path(id, "places.mobfarm"))) farmAdd(id, "mobfarm");
@@ -3660,7 +3661,7 @@ final class Helper implements Listener {
 
     /** "mobfarm", "mobfarm <name>", "mobfarm <name> here": it runs a mob farm from a post outside it. With no name it
      *  is the only mob farm there is; with none yet (or a new name, or "here") the post is where its owner stands. */
-    private void mobfarm(Player p, H h, String arg) {
+    void mobfarm(Player p, H h, String arg) {
         UUID id = p.getUniqueId();
         String a = arg.toLowerCase(Locale.ROOT).trim();
         boolean here = a.matches("(?:.* )?(?:here|her)");
@@ -3688,15 +3689,15 @@ final class Helper implements Listener {
         say(p, (made ? "This post is mob farm " + name + " now. " : "I run mob farm " + name + ". ") + "I stay outside, strike what I can reach with my sword and sort what lands in the chests every minute. I keep at it when you log out. Say stop when I should come with you.");
     }
 
-    private static final class MobYard { final List<Block> floors = new ArrayList<>(); EntityType kind; long at; int rounds; }
-    private final Map<UUID, MobYard> mobYards = new HashMap<>();
-    private static final EntityType[] MOBS = {EntityType.ZOMBIE, EntityType.ZOMBIE, EntityType.SKELETON, EntityType.SKELETON, EntityType.CREEPER, EntityType.SPIDER};
+    static final class MobYard { final List<Block> floors = new ArrayList<>(); EntityType kind; long at; int rounds; }
+    final Map<UUID, MobYard> mobYards = new HashMap<>();
+    static final EntityType[] MOBS = {EntityType.ZOMBIE, EntityType.ZOMBIE, EntityType.SKELETON, EntityType.SKELETON, EntityType.CREEPER, EntityType.SPIDER};
 
     /** The mob farm at the saved place "mobfarm". No monsters come while nobody is logged in, so the helper calls
      *  them itself: three every ten seconds on the dark, roofed floors within 24 blocks (from the level of the place
      *  and 48 blocks up), the kind of a spawner when there is one within 24 blocks. The farm does the rest; what gets
      *  within 8 blocks of the place is killed, the drops go in the bag and the experience to the owner. */
-    private int awayMobs(UUID id, Location at, boolean sure) {
+    int awayMobs(UUID id, Location at, boolean sure) {
         World w = at.getWorld();
         MobYard y = mobYards.get(id);
         long now = System.currentTimeMillis();
@@ -3767,7 +3768,7 @@ final class Helper implements Listener {
     }
 
     /** A golden chicken it has not seen before: its owner hears of it (at once, or in the finds when they are away). */
-    private void goldSeen(UUID id, org.bukkit.entity.Chicken c, String how) {
+    void goldSeen(UUID id, org.bukkit.entity.Chicken c, String how) {
         List<String> seen = conf.getStringList(path(id, "golden"));
         String key = c.getUniqueId().toString();
         if (seen.contains(key)) return;
@@ -3783,13 +3784,13 @@ final class Helper implements Listener {
         if (finds.size() < 30) { finds.add(how == null ? "a golden chicken at " + where : "a golden chick " + how + " at " + where); conf.set(path(id, "away.finds"), finds); }
     }
 
-    private static final Map<EntityType, Material> MEAT = Map.of(EntityType.COW, Material.BEEF, EntityType.PIG, Material.PORKCHOP, EntityType.SHEEP, Material.MUTTON, EntityType.CHICKEN, Material.CHICKEN);
-    private static final Material[] FODDER = {Material.WHEAT, Material.CARROT, Material.POTATO, Material.BEETROOT, Material.WHEAT_SEEDS, Material.BEETROOT_SEEDS, Material.MELON_SEEDS, Material.PUMPKIN_SEEDS};
+    static final Map<EntityType, Material> MEAT = Map.of(EntityType.COW, Material.BEEF, EntityType.PIG, Material.PORKCHOP, EntityType.SHEEP, Material.MUTTON, EntityType.CHICKEN, Material.CHICKEN);
+    static final Material[] FODDER = {Material.WHEAT, Material.CARROT, Material.POTATO, Material.BEETROOT, Material.WHEAT_SEEDS, Material.BEETROOT_SEEDS, Material.MELON_SEEDS, Material.PUMPKIN_SEEDS};
 
     /** Once a minute for the cows, pigs, sheep and chickens within 100 blocks of home: sheep are shorn, a herd under
      *  twelve gets fed two and two (so there are young), a herd over twelve grown ones loses up to two (meat, leather
      *  and feathers into the bag; never the young, the named or the leashed), and what lies on the ground is picked up. */
-    private int awayAnimals(UUID id, Location hm) {
+    int awayAnimals(UUID id, Location hm) {
         List<Inventory> from = new ArrayList<>(List.of(bag(id)));
         from.addAll(stores(hm, HOME));
         Map<EntityType, List<Animals>> herds = new HashMap<>();
@@ -3896,275 +3897,9 @@ final class Helper implements Listener {
         return got;
     }
 
-    /** The n-th chunk of a square spiral around 0,0. */
-    private static int[] spiral(int n) {
-        int x = 0, z = 0, dx = 0, dz = -1;
-        for (int i = 0; i < n; i++) {
-            if (x == z || (x < 0 && x == -z) || (x > 0 && x == 1 - z)) { int t = dx; dx = -dz; dz = t; }
-            x += dx;
-            z += dz;
-        }
-        return new int[] {x, z};
-    }
-
-    private static boolean oreFor(Material m, String target) {
-        String n = m.name();
-        return n.contains(target) && (n.endsWith("_ORE") || m == Material.ANCIENT_DEBRIS || m == Material.OBSIDIAN);
-    }
-
-    /** "diamonds", "kull", "iron ore" -> DIAMOND, COAL, IRON; null when it is not something it digs for. */
-    private static String oreTarget(String words) {
-        String w = ARTICLE.matcher(words.trim().toLowerCase(Locale.ROOT)).replaceFirst("").replaceAll("\\s+(?:ore|malm)$", "").trim();
-        String t = ORE_WORDS.get(w);
-        if (t == null) t = w.toUpperCase(Locale.ROOT).replaceAll("[\\s-]+", "_");
-        if (t.endsWith("S") && t.length() > 4) { String one = t.substring(0, t.length() - 1); for (Material m : Material.values()) if (oreFor(m, one)) return one; }
-        for (Material m : Material.values()) if (oreFor(m, t)) return t;
-        return null;
-    }
-
-    /** Digs out one kind of ore within 128 blocks of home (all heights), where the land already exists: looks
-     *  through up to four chunks every ten seconds, and takes three blocks at a time, with fortune III. */
-    private int awayMine(UUID id, Location hm) {
-        String target = conf.getString(path(id, "away.target"), "");
-        if (target.isEmpty()) return 0;
-        Deque<Block> q = awayOre.computeIfAbsent(id, k -> new ArrayDeque<>());
-        World w = hm.getWorld();
-        for (int tries = 0; q.isEmpty() && tries < 4; tries++) {
-            int i = awayScan.merge(id, 1, Integer::sum) - 1;
-            int[] c = spiral(i);
-            if (Math.max(Math.abs(c[0]), Math.abs(c[1])) > 8) {
-                awayScan.remove(id);
-                conf.set(path(id, "away.why"), "there is no more " + target.toLowerCase(Locale.ROOT).replace('_', ' ') + " within 128 blocks of home");
-                conf.set(path(id, "away.full"), true);
-                return 0;
-            }
-            int cx = (hm.getBlockX() >> 4) + c[0], cz = (hm.getBlockZ() >> 4) + c[1];
-            if (!w.isChunkGenerated(cx, cz)) continue;
-            org.bukkit.ChunkSnapshot snap = w.getChunkAt(cx, cz).getChunkSnapshot();
-            for (int y = w.getMinHeight(); y < w.getMaxHeight(); y++) for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++)
-                if (oreFor(snap.getBlockType(x, y, z), target)) q.add(w.getBlockAt(cx * 16 + x, y, cz * 16 + z));
-        }
-        int n = 0;
-        while (n < 3 && !q.isEmpty()) {
-            Block b = q.poll();
-            if (!oreFor(b.getType(), target)) continue;
-            Collection<ItemStack> d = drops(b);
-            awayNote(id, d);
-            addToBag(id, d);
-            String ore = b.getType().name();
-            xp(id, ore.contains("DIAMOND") || ore.contains("EMERALD") ? 3 + ThreadLocalRandom.current().nextInt(5) : ore.contains("LAPIS") || ore.contains("QUARTZ") || ore.contains("REDSTONE") ? 2 + ThreadLocalRandom.current().nextInt(4)
-                    : ore.contains("COAL") ? ThreadLocalRandom.current().nextInt(3) : 0);
-            b.setType(Material.AIR);
-            n++;
-        }
-        return n;
-    }
-
-    /** Goes further and further out from home (to 3000 blocks), one new piece of land every ten seconds, also where
-     *  nobody has been. Buildings it finds are remembered as places (goto <name>) and told about afterwards. On the
-     *  way it digs out what it is looking for (see SEEK), and for every treasure chest nobody has opened it makes
-     *  a treasure map with a red cross and puts it in a chest at home. From the home chores (side) it never stops
-     *  the work when there is no more land to see. */
-    private static final int EXPLORE_STEPS = 94;                           // two chunks a step: about 3000 blocks out
-
-    private int awayExplore(UUID id, Location hm, boolean side) {
-        int i = conf.getInt(path(id, "away.scan"), 0);
-        int[] c = spiral(i);
-        if (Math.max(Math.abs(c[0]), Math.abs(c[1])) > EXPLORE_STEPS) {
-            if (side) return 0;
-            conf.set(path(id, "away.why"), "I have seen everything within 3000 blocks of home");
-            conf.set(path(id, "away.full"), true);
-            return 0;
-        }
-        conf.set(path(id, "away.scan"), i + 1);
-        World w = hm.getWorld();
-        int cx = (hm.getBlockX() >> 4) + c[0] * 2, cz = (hm.getBlockZ() >> 4) + c[1] * 2;
-        w.getChunkAtAsync(cx, cz, true).thenAccept(ch -> {
-            passOres(id, ch);
-            treasures(id, hm, ch);
-            Registry<Structure> reg = RegistryAccess.registryAccess().getRegistry(RegistryKey.STRUCTURE);
-            for (GeneratedStructure gs : w.getStructures(cx, cz)) {
-                NamespacedKey k = reg.getKey(gs.getStructure());
-                if (k == null) continue;
-                Vector mid = gs.getBoundingBox().getCenter();
-                int x = mid.getBlockX(), z = mid.getBlockZ();
-                Location at = new Location(w, x + 0.5, w.getEnvironment() == World.Environment.NORMAL ? w.getHighestBlockYAt(x, z) + 1 : mid.getBlockY(), z + 0.5);
-                ConfigurationSection sec = conf.getConfigurationSection(path(id, "places"));
-                boolean known = false;
-                if (sec != null) for (String name : sec.getKeys(false)) {
-                    Location l = place(sec.getString(name));
-                    if (name.startsWith(k.getKey()) && l != null && l.getWorld() == w && l.distanceSquared(at) < 200 * 200) { known = true; break; }
-                }
-                if (known) continue;
-                String name = k.getKey();
-                for (int n = 2; sec != null && sec.contains(name) && n < 50; n++) name = k.getKey() + "_" + n;
-                conf.set(path(id, "places." + name), spot(at));
-                String told = k.getKey().replace('_', ' ') + " at " + x + " " + z + " (goto " + name.replace('_', ' ') + ")";
-                awayLog(id, "found a " + told);
-                List<String> finds = conf.getStringList(path(id, "away.finds"));
-                if (finds.size() < 30) { finds.add(told); conf.set(path(id, "away.finds"), finds); }
-            }
-        });
-        return 1;
-    }
-
-    /** What it digs for while exploring, in this order: the first kind you have less than the limit of (in your own
-     *  store, its bag and the chests at home). "find <ore or wood>" puts one kind first, however much you have. */
-    private static final String[][] SEEK = {   // name, what it yields, limit
-            {"diamond", "DIAMOND", "640"}, {"gold", "RAW_GOLD GOLD_INGOT", "640"}, {"iron", "RAW_IRON IRON_INGOT", "640"},
-            {"coal", "COAL", "640"}, {"lapis", "LAPIS_LAZULI", "640"}, {"redstone", "REDSTONE", "640"}};
-    private final Map<UUID, Object[]> seekNow = new HashMap<>();             // the kind chosen from the stock, and when
-
-    /** "redstone", "gold ore", "oak", "birch logs", "wood" -> ORE:REDSTONE, ORE:GOLD, LOG:OAK, LOG:BIRCH, LOG:; null if it is neither. */
-    private static String seekSpec(String words) {
-        String w = ARTICLE.matcher(words.trim().toLowerCase(Locale.ROOT)).replaceFirst("").trim();
-        if (w.matches("wood|woods|log|logs|tree|trees|tre|ved|stokker")) return "LOG:";
-        String t = w.replaceAll("\\s+(?:logs?|wood|trees?|tre|stokker)$", "").toUpperCase(Locale.ROOT).replaceAll("[\\s-]+", "_");
-        if (mat(t + "_LOG") != null) return "LOG:" + t;
-        if (mat(t + "_STEM") != null && !t.contains("MUSHROOM")) return "LOG:" + t;
-        String ore = oreTarget(w);
-        return ore == null ? null : "ORE:" + ore;
-    }
-
-    private static boolean seekBlock(Material m, String spec) {
-        if (spec.startsWith("ORE:")) {
-            String t = spec.substring(4);
-            return oreFor(m, t) && (!t.equals("IRON") || m.name().endsWith("IRON_ORE")) && (!t.equals("GOLD") || m.name().endsWith("GOLD_ORE"));
-        }
-        String t = spec.substring(4), n = m.name();
-        boolean log = Tag.LOGS.isTagged(m) && !n.startsWith("STRIPPED_") && (n.endsWith("_LOG") || n.endsWith("_STEM"));
-        return log && (t.isEmpty() || n.equals(t + "_LOG") || n.equals(t + "_STEM"));
-    }
-
-    private static String seekWord(String spec) {
-        String t = spec.substring(4).toLowerCase(Locale.ROOT).replace('_', ' ');
-        return spec.startsWith("LOG:") ? (t.isEmpty() ? "wood" : t + " wood") : t;
-    }
-
-    /** What it digs for now: your order, else the first kind below its limit, else nothing. Looked at once a minute. */
-    private String seeking(UUID id) {
-        String asked = conf.getString(path(id, "seek"));
-        if (asked != null) return asked;
-        Object[] was = seekNow.get(id);
-        if (was != null && System.currentTimeMillis() - (long) was[1] < 60_000) return (String) was[0];
-        List<Inventory> in = new ArrayList<>(List.of(bag(id)));
-        Location hm = home(id);
-        if (hm != null && hm.getWorld() != null) in.addAll(stores(hm, HOME));
-        String pick = null;
-        for (String[] k : SEEK) {
-            Set<Material> yields = new HashSet<>();
-            for (String y : k[1].split(" ")) yields.add(Material.valueOf(y));
-            long have = count(in, yields::contains) + (storage == null ? 0 : storage.countMine(id, yields));
-            if (have < conf.getLong("settings.seek-limit." + k[0], Long.parseLong(k[2]))) { pick = "ORE:" + k[0].toUpperCase(Locale.ROOT); break; }
-        }
-        String before = was == null ? null : (String) was[0];
-        if (!java.util.Objects.equals(before, pick)) awayLog(id, pick == null ? "has plenty of every ore now, so it digs for none while exploring"
-                : "looks for " + seekWord(pick) + " while exploring" + (before == null ? "" : " (enough " + seekWord(before) + " now)"));
-        seekNow.put(id, new Object[] {pick, System.currentTimeMillis()});
-        return pick;
-    }
-
-    /** A log that belongs to a tree: leaves that grew there (not placed) within a few blocks above or beside it.
-     *  So the walls of a log cabin are left alone. */
-    private static boolean wildLog(org.bukkit.ChunkSnapshot snap, int x, int y, int z, int top) {
-        for (int dy = 0; dy <= 8 && y + dy < top; dy++) for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
-            int ax = x + dx, az = z + dz;
-            if (ax < 0 || ax > 15 || az < 0 || az > 15) continue;
-            if (snap.getBlockData(ax, y + dy, az) instanceof org.bukkit.block.data.type.Leaves l && !l.isPersistent()) return true;
-        }
-        return false;
-    }
-
-    /** What it is looking for in a piece of land it passes: up to 64 blocks of it.
-     *  Ore turns to stone (no holes in the land), a felled log to air. */
-    private void passOres(UUID id, org.bukkit.Chunk ch) {
-        String spec = seeking(id);
-        if (spec == null) return;
-        World w = ch.getWorld();
-        org.bukkit.ChunkSnapshot snap = ch.getChunkSnapshot();
-        int n = 0, top = w.getMaxHeight();
-        Map<Material, Integer> got = new java.util.EnumMap<>(Material.class);
-        outer:
-        for (int y = w.getMinHeight(); y < top; y++) for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
-            Material m = snap.getBlockType(x, y, z);
-            if (!seekBlock(m, spec)) continue;
-            boolean log = spec.startsWith("LOG:");
-            if (log && !wildLog(snap, x, y, z, top)) continue;
-            Block b = ch.getBlock(x, y, z);
-            for (ItemStack d : drops(b)) if (!empty(d)) got.merge(d.getType(), d.getAmount(), Integer::sum);
-            String k = m.name();
-            if (!log) xp(id, k.contains("DIAMOND") || k.contains("EMERALD") ? 3 + ThreadLocalRandom.current().nextInt(5) : k.contains("LAPIS") || k.contains("REDSTONE") ? 2 + ThreadLocalRandom.current().nextInt(4) : k.contains("COAL") ? ThreadLocalRandom.current().nextInt(3) : 0);
-            b.setType(log ? Material.AIR : k.startsWith("DEEPSLATE") ? Material.DEEPSLATE : k.startsWith("NETHER") ? Material.NETHERRACK : Material.STONE);
-            if (++n >= 64) break outer;
-        }
-        if (n == 0) return;
-        bump(id, "mined", n);
-        List<ItemStack> stacks = new ArrayList<>();                         // one line in the log per kind (per stack), not per block
-        got.forEach((m, a) -> { for (int left = a; left > 0; left -= m.getMaxStackSize()) stacks.add(new ItemStack(m, Math.min(left, m.getMaxStackSize()))); });
-        awayNote(id, stacks);
-        addToBag(id, stacks);
-    }
-
-    /** Chests nobody has opened yet (buried treasure, shipwrecks, temples, dungeons …, not villages): a treasure map. */
-    private void treasures(UUID id, Location hm, org.bukkit.Chunk ch) {
-        World w = ch.getWorld();
-        for (BlockState st : ch.getTileEntities(b -> b.getType() == Material.CHEST || b.getType() == Material.BARREL, false)) {
-            if (!(st instanceof org.bukkit.loot.Lootable lt) || !lt.hasLootTable() || lt.getLootTable() == null) continue;
-            String table = lt.getLootTable().getKey().getKey();                         // chests/buried_treasure …
-            if (table.contains("village")) continue;
-            int x = st.getX(), y = st.getY(), z = st.getZ();
-            ConfigurationSection sec = conf.getConfigurationSection(path(id, "places"));
-            boolean known = false;
-            if (sec != null) for (String name : sec.getKeys(false)) {
-                Location l = place(sec.getString(name));
-                if (name.startsWith("treasure") && l != null && l.getWorld() == w && l.distanceSquared(new Location(w, x, y, z)) < 48 * 48) { known = true; break; }
-            }
-            if (known) continue;
-            String what = table.replaceFirst("^chests/", "").replace('/', ' ').replace('_', ' ');
-            String name = "treasure";
-            for (int n = 2; sec != null && sec.contains(name) && n < 200; n++) name = "treasure_" + n;
-            conf.set(path(id, "places." + name), spot(new Location(w, x + 0.5, y + 1, z + 0.5)));
-            ItemStack map = treasureMap(w, x, y, z, what);
-            boolean inBarrel = myBarrel(id, hm.getWorld()) != null;
-            if (inBarrel) storage.putMine(id, List.of(map));
-            else {
-                List<Inventory> to = stores(hm, HOME);
-                Map<Integer, ItemStack> rest = Map.of(0, map);
-                for (Inventory inv : to) { if (rest.isEmpty()) break; rest = inv.addItem(map.clone()); }
-                if (!rest.isEmpty()) bag(id).addItem(map);
-            }
-            dirty.add(id);
-            bump(id, "maps", 1);
-            String told = "a treasure (" + what + ") at " + x + " " + y + " " + z + ": a map is in " + (inBarrel ? "your magic barrel" : "the chests at home") + " (goto " + name.replace('_', ' ') + ")";
-            awayLog(id, "found " + told);
-            List<String> finds = conf.getStringList(path(id, "away.finds"));
-            if (finds.size() < 30) { finds.add(told); conf.set(path(id, "away.finds"), finds); }
-        }
-    }
-
-    private static ItemStack treasureMap(World w, int x, int y, int z, String what) {
-        org.bukkit.map.MapView v = Bukkit.createMap(w);
-        v.setCenterX(x);
-        v.setCenterZ(z);
-        v.setScale(org.bukkit.map.MapView.Scale.NORMAL);
-        v.setTrackingPosition(true);
-        v.setUnlimitedTracking(true);
-        ItemStack it = new ItemStack(Material.FILLED_MAP);
-        if (it.getItemMeta() instanceof org.bukkit.inventory.meta.MapMeta mm) {
-            mm.setMapView(v);
-            mm.customName(Component.text("Treasure map: " + what, NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
-            mm.lore(List.of(Component.text(x + " " + y + " " + z + " in " + w.getName(), NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false),
-                    Component.text("Dig where the red cross is.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
-            it.setItemMeta(mm);
-        }
-        it.setData(io.papermc.paper.datacomponent.DataComponentTypes.MAP_DECORATIONS, io.papermc.paper.datacomponent.item.MapDecorations.mapDecorations(
-                Map.of("treasure", io.papermc.paper.datacomponent.item.MapDecorations.decorationEntry(org.bukkit.map.MapCursor.Type.RED_X, x, z, 180f))));
-        return it;
-    }
-
     /** Bag and chests full: a new chest from eight planks (or two logs) out of the chests, set down next to one of
      *  the chests at home. False when there is no wood or no free spot. */
-    private boolean moreRoom(UUID id, Location hm) {
+    boolean moreRoom(UUID id, Location hm) {
         List<Inventory> from = new ArrayList<>(List.of(bag(id)));
         List<Inventory> chests = stores(hm, HOME);
         from.addAll(chests);
@@ -4195,7 +3930,7 @@ final class Helper implements Listener {
         return true;
     }
 
-    private String awayDid(UUID id) {
+    String awayDid(UUID id) {
         int fish = conf.getInt(path(id, "away.fish"), 0), crops = conf.getInt(path(id, "away.crops"), 0), smelted = conf.getInt(path(id, "away.smelted"), 0);
         List<String> did = new ArrayList<>();
         if (fish > 0) did.add("caught " + fish + (fish == 1 ? " thing" : " things") + " fishing");
@@ -4224,7 +3959,7 @@ final class Helper implements Listener {
     }
 
     /** "sum": everything done since the job began (the counters start again each time the owner logs out). */
-    private String sum(UUID id) {
+    String sum(UUID id) {
         String did = awayDid(id), job = conf.getString(path(id, "away.job"), "");
         long min = conf.getLong(path(id, "away.ms"), 0) / 60_000;
         List<String> finds = conf.getStringList(path(id, "away.finds"));
@@ -4240,14 +3975,14 @@ final class Helper implements Listener {
 
     /** "Did you find anything special?": the enchanted things, treasure, buildings and new chests of this time away,
      *  or of the last one when the owner is back. */
-    private String finds(UUID id) {
+    String finds(UUID id) {
         List<String> now = conf.getStringList(path(id, "away.finds")), last = conf.getStringList(path(id, "away.lastfinds"));
         if (!now.isEmpty()) return "Yes! So far: " + String.join("; ", now) + ".";
         if (conf.getLong(path(id, "away.ms"), 0) > 0) return "Nothing special yet this time. I will tell you when I do.";
         return last.isEmpty() ? "No, nothing special last time." : "Yes! Last time you were away: " + String.join("; ", last) + ".";
     }
 
-    private static final String[][] LOOKS = {
+    static final String[][] LOOKS = {
         {"ninja", "Silent as a shadow. You will not hear me coming.", "Black belt on. Nobody sneaks up on you now."},
         {"knight|paladin|templar|angelman", "Armour on, sword ready. I have your back.", "A knight at your service!"},
         {"princess|elsa|anna|peach|angel_woman|fairy", "Oh, I love this dress! Shall we?", "Do I get a crown with this?"},
@@ -4268,10 +4003,10 @@ final class Helper implements Listener {
         {"panda|bear|tiger|bunny|rabbit|frog|penguin|dragon|trex|dino|unicorn", "Rawr! Too cute, or just cute enough?"},
         {"boy|girl|man|woman|steve|alex", "Fresh clothes, same me. How do I look?"},
     };
-    private static final String[] LOOK_ANY = {"New look! What do you think?", "Oh, I like this one. Does it suit me?", "A change of clothes does wonders. Ready when you are.", "Ta-da! Still me, just better dressed."};
+    static final String[] LOOK_ANY = {"New look! What do you think?", "Oh, I like this one. Does it suit me?", "A change of clothes does wonders. Ready when you are.", "Ta-da! Still me, just better dressed."};
 
     /** What it says about its new skin. */
-    private static String look(String skin) {
+    static String look(String skin) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         String k = skin.toLowerCase(Locale.ROOT);
         for (String[] l : LOOKS) if (Pattern.compile(l[0]).matcher(k).find()) return l[1 + r.nextInt(l.length - 1)];
@@ -4280,7 +4015,7 @@ final class Helper implements Listener {
 
     // --- Personality -------------------------------------------------------------------------------
     /** name, what it is like (for the model that answers in game), openers, closers (for the fixed lines). */
-    private static final String[][] PERSONAS = {
+    static final String[][] PERSONAS = {
         {"brave", "bold and fearless, wants to go first into every danger", "Fear not!|No danger is too big!", "I will go first.|Nothing scares me."},
         {"tough", "tough and short-spoken, never complains", "Hmph.|Easy.", "No sweat.|I have had worse."},
         {"thoughtful", "considerate, remembers what the player likes and asks how they are", "I thought of you.|Just so you know:", "I hope that helps.|Take care of yourself."},
@@ -4307,18 +4042,18 @@ final class Helper implements Listener {
         {"robot", "precise and literal like a robot", "BEEP.|PROCESSING… DONE.", "TASK LOGGED.|END OF MESSAGE."},
         {"poet", "answers in rhyme", "A verse for you:|Roses are red:", "…and that is my rhyme, right on time.|…so says your poet, and now you know it."}
     };
-    private static final Map<String, String> PERSONA_ALIAS = Map.ofEntries(Map.entry("thoughtfull", "thoughtful"), Map.entry("toughtfull", "thoughtful"), Map.entry("genious", "genius"),
+    static final Map<String, String> PERSONA_ALIAS = Map.ofEntries(Map.entry("thoughtfull", "thoughtful"), Map.entry("toughtfull", "thoughtful"), Map.entry("genious", "genius"),
             Map.entry("inlove", "loving"), Map.entry("love", "loving"), Map.entry("negative", "grumpy"), Map.entry("shy", "timid"), Map.entry("happy", "positive"),
             Map.entry("smart", "genius"), Map.entry("modig", "brave"), Map.entry("morsom", "funny"), Map.entry("sur", "grumpy"), Map.entry("sjenert", "timid"),
             Map.entry("rolig", "calm"), Map.entry("nysgjerrig", "curious"), Map.entry("pirat", "pirate"), Map.entry("høflig", "polite"), Map.entry("trøtt", "sleepy"));
 
-    private static String[] persona(String name) {
+    static String[] persona(String name) {
         for (String[] p : PERSONAS) if (p[0].equals(name)) return p;
         return null;
     }
 
     /** "personality brave funny", "personality reset", "personality": sets, clears or shows it. At most two. */
-    private String personality(UUID id, String rest) {
+    String personality(UUID id, String rest) {
         String t = rest.toLowerCase(Locale.ROOT).replace("in love", "inlove").trim();
         List<String> all = new ArrayList<>();
         for (String[] p : PERSONAS) all.add(p[0]);
@@ -4343,7 +4078,7 @@ final class Helper implements Listener {
     }
 
     /** A fixed line said in its own voice: now and then a few words of its personality before or after. */
-    private String voice(UUID id, String text) {
+    String voice(UUID id, String text) {
         List<String> now = conf.getStringList(path(id, "personality"));
         if (now.isEmpty() || text.indexOf('\n') >= 0) return text;
         ThreadLocalRandom r = ThreadLocalRandom.current();
@@ -4357,13 +4092,13 @@ final class Helper implements Listener {
     }
 
     /** For the model: who it is, as part of what it "sees". */
-    private String personaNote(UUID id) {
+    String personaNote(UUID id) {
         StringBuilder sb = new StringBuilder();
         for (String n : conf.getStringList(path(id, "personality"))) { String[] p = persona(n); if (p != null) sb.append(sb.length() == 0 ? "" : "; ").append(p[0]).append(" (").append(p[1]).append(")"); }
         return sb.length() == 0 ? "" : " Your personality: " + sb + ".";
     }
 
-    private static final String[] JOKES = {
+    static final String[] JOKES = {
         "Why did the creeper cross the road? To get to the other sssssside.",
         "What is a skeleton's favourite instrument? The trom-bone.",
         "Why are there no cars in Minecraft? Because the streets are blocked.",
@@ -4383,9 +4118,9 @@ final class Helper implements Listener {
         "What does a creeper say on its birthday? Do not blow out the candles, I will do it.",
         "Why do I never get lost? Because you gave me a home.",
     };
-    private final Map<UUID, Integer> lastJoke = new HashMap<>();
+    final Map<UUID, Integer> lastJoke = new HashMap<>();
 
-    private String joke(UUID id) {
+    String joke(UUID id) {
         int n;
         do { n = ThreadLocalRandom.current().nextInt(JOKES.length); } while (Integer.valueOf(n).equals(lastJoke.get(id)));
         lastJoke.put(id, n);
@@ -4393,7 +4128,7 @@ final class Helper implements Listener {
     }
 
     /** A short answer of its own to an order it cannot follow while its owner is away. */
-    private String shrug(UUID id, String words) {
+    String shrug(UUID id, String words) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         String t = POLITE.matcher(words.replaceAll("[.!?\\s]+$", "").trim()).replaceAll("").trim().toLowerCase(Locale.ROOT);
         String first = t.split(" ")[0], doing = doing(id);
@@ -4414,7 +4149,7 @@ final class Helper implements Listener {
     }
 
     /** What it is doing while its owner is away, for answers to orders that change nothing. */
-    private String doing(UUID id) {
+    String doing(UUID id) {
         String job = conf.getString(path(id, "away.job"), "");
         if (!conf.getBoolean(path(id, "active")) || !flag(id, "watch", false)) return "I have no job while you are away.";
         return "I carry on " + switch (job) {
@@ -4429,7 +4164,7 @@ final class Helper implements Listener {
         } + ".";
     }
 
-    private void awayReport(Player p) {
+    void awayReport(Player p) {
         UUID id = p.getUniqueId();
         if (conf.getBoolean(path(id, "away.auto"))) {                      // it ran a mob farm on its own: the job from before counts again
             conf.set(path(id, "away.job"), conf.getString(path(id, "away.prevjob")));
@@ -4460,7 +4195,7 @@ final class Helper implements Listener {
 
     /** The orders that only change what the helper is like or remembers: these work with the owner away, straight
      *  into helpers.yml. {@code raw} keeps the capitals (for names). False when it is not one of them. */
-    private boolean settings(UUID id, String raw, String t, Consumer<String> tell) {
+    boolean settings(UUID id, String raw, String t, Consumer<String> tell) {
         String[] args = raw.split("\\s+");
         for (String[] w : WORDS) if (t.matches(w[1])) { args = w[0].split(" "); break; }
         Matcher nm = Pattern.compile("(?i)(?:your name is|you are called|call yourself|du heter|heter|kall deg)\\s+(.{2,32})").matcher(raw);
@@ -4603,7 +4338,7 @@ final class Helper implements Listener {
 
     /** An order for a helper whose owner is logged out. Everything happens at home. False when it is not something
      *  it can do without the owner in the world. */
-    private boolean offline(UUID id, String words, Consumer<String> tell) {
+    boolean offline(UUID id, String words, Consumer<String> tell) {
         String t = POLITE.matcher(words.replaceAll("[.!?\\s]+$", "").trim()).replaceAll("").trim().toLowerCase(Locale.ROOT);
         if (buildOrder(id, null, t, tell)) return true;
         if (t.matches(".*\\b(joke|jokes|vits|vitser|spøk)\\b.*")) { tell.accept(joke(id)); return true; }
@@ -4638,7 +4373,7 @@ final class Helper implements Listener {
         }
         m = Pattern.compile("(?:mine|dig for|dig|find|look for|finn|let etter|grav etter|grav|hugg)\\s+(.{1,30})").matcher(t);
         if (m.matches()) {
-            String target = oreTarget(m.group(1));
+            String target = Explorer.oreTarget(m.group(1));
             if (target == null) { tell.accept("I can dig for ores while you are away: diamond, coal, iron, gold, copper, redstone, lapis, emerald, quartz, ancient debris, obsidian. Not " + m.group(1) + "."); return true; }
             conf.set(path(id, "watch"), true);
             conf.set(path(id, "away.job"), "mine");
@@ -4759,7 +4494,7 @@ final class Helper implements Listener {
     }
 
     /** The owner's routines also run while they are away, for the orders offline() knows. */
-    private void awayRoutines(UUID id, Location hm) {
+    void awayRoutines(UUID id, Location hm) {
         List<String> rs = conf.getStringList(path(id, "routines"));
         if (rs.isEmpty()) return;
         long t = hm.getWorld().getTime(), now = System.currentTimeMillis();
@@ -4787,7 +4522,7 @@ final class Helper implements Listener {
     }
 
     /** From the server console or RCON: helper pause | resume | save | status | tell <player> <words>. */
-    private void console(org.bukkit.command.CommandSender to, String[] args) {
+    void console(org.bukkit.command.CommandSender to, String[] args) {
         String sub = args.length == 0 ? "status" : args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
             case "pause", "resume" -> {
@@ -4863,13 +4598,13 @@ final class Helper implements Listener {
 
     // --- Chores: tidying, mending, errands, trading, deliveries, routines, fixing creeper holes --------------------
 
-    private static int count(List<Inventory> in, Predicate<Material> kind) {
+    static int count(List<Inventory> in, Predicate<Material> kind) {
         int n = 0;
         for (Inventory inv : in) for (ItemStack it : inv.getStorageContents()) if (!empty(it) && kind.test(it.getType())) n += it.getAmount();
         return n;
     }
 
-    private static void take(List<Inventory> in, Predicate<Material> kind, int n) {
+    static void take(List<Inventory> in, Predicate<Material> kind, int n) {
         for (Inventory inv : in) {
             ItemStack[] c = inv.getStorageContents();
             for (int i = 0; i < c.length && n > 0; i++) {
@@ -4882,7 +4617,7 @@ final class Helper implements Listener {
         }
     }
 
-    private void hand(UUID id, Player p, ItemStack it) {
+    void hand(UUID id, Player p, ItemStack it) {
         if (p != null) { give(p, it); return; }
         Map<Integer, ItemStack> rest = bag(id).addItem(it);
         dirty.add(id);
@@ -4894,18 +4629,18 @@ final class Helper implements Listener {
         if (!rest.isEmpty() && hm != null) hm.getWorld().dropItem(hm, rest.values().iterator().next());
     }
 
-    private static String word(Material m) { return m.name().toLowerCase(Locale.ROOT).replace('_', ' '); }
+    static String word(Material m) { return m.name().toLowerCase(Locale.ROOT).replace('_', ' '); }
 
     /** Every kind of thing ends up in the home chest that already has the most of it. Returns how many things were
      *  moved, or -1 when there are not two chests at home. */
-    private int tidy(UUID id) {
+    int tidy(UUID id) {
         Location hm = homeNow(id);
         return hm == null ? -1 : tidy(stores(hm, HOME));
     }
 
-    private int tidyStuck;                                                  // after tidy(): things left in a chest they do not belong in
+    int tidyStuck;                                                  // after tidy(): things left in a chest they do not belong in
 
-    private static String coarse(ItemStack it) {
+    static String coarse(ItemStack it) {
         Material m = it.getType();
         String n = m.name();
         if (n.endsWith("_HELMET") || n.endsWith("_CHESTPLATE") || n.endsWith("_LEGGINGS") || n.endsWith("_BOOTS") || m == Material.ELYTRA) return "armour";
@@ -4923,20 +4658,20 @@ final class Helper implements Listener {
     }
 
     /** The narrow kind of a thing: "golden armour", "iron tools" …; for what is not gear, the same as the broad kind. */
-    private static String fine(ItemStack it) {
+    static String fine(ItemStack it) {
         String c = coarse(it), n = it.getType().name();
         if (c.equals("armour") || c.equals("tools") || c.equals("weapons"))
             for (String of : new String[] {"GOLDEN", "LEATHER", "IRON", "CHAINMAIL", "COPPER", "DIAMOND", "NETHERITE", "STONE", "WOODEN"}) if (n.startsWith(of + "_")) return of.toLowerCase(Locale.ROOT) + " " + c;
         return c;
     }
 
-    private static boolean fits(String theme, ItemStack it) {
+    static boolean fits(String theme, ItemStack it) {
         return theme == null || (theme.startsWith("=") ? it.getType().name().equals(theme.substring(1)) : fine(it).equals(theme) || coarse(it).equals(theme));
     }
 
     /** What a chest is for: the thing in an item frame on it, or else what at least six in ten of its stacks are
      *  (first the narrow kind, like golden armour, then the broad one, like armour). Null: a chest for anything. */
-    private static String theme(Inventory inv) {
+    static String theme(Inventory inv) {
         Location l = inv.getLocation();
         if (l != null) for (Entity e : l.getWorld().getNearbyEntities(l.clone().add(0.5, 0.5, 0.5), 1.6, 1.2, 1.6))
             if (e instanceof org.bukkit.entity.ItemFrame fr && !empty(fr.getItem())) { String f = fine(fr.getItem()); return f.equals(coarse(fr.getItem())) ? "=" + fr.getItem().getType().name() : f; }
@@ -4952,7 +4687,7 @@ final class Helper implements Listener {
     /** Tidies a set of chests. Every kind of thing ends up in the chest that already has the most of it, and what does
      *  not belong in a chest (leather boots among the golden armour) moves to a chest for its kind, or else to a chest
      *  for anything. Returns how many things were moved, or -1 when there are not two chests. */
-    private int tidy(List<Inventory> invs) {
+    int tidy(List<Inventory> invs) {
         tidyStuck = 0;
         if (invs.size() < 2) return -1;
         int size = invs.size();
@@ -5011,7 +4746,7 @@ final class Helper implements Listener {
     }
 
     /** What it takes to mend a thing: one of this. Null = nothing needed. */
-    private static Predicate<Material> mendWith(Material m) {
+    static Predicate<Material> mendWith(Material m) {
         String n = m.name();
         Material need = n.startsWith("IRON_") || n.startsWith("CHAINMAIL_") || n.equals("SHEARS") || n.equals("SHIELD") || n.equals("FLINT_AND_STEEL") ? Material.IRON_INGOT
                 : n.startsWith("DIAMOND_") || n.startsWith("NETHERITE_") ? Material.DIAMOND
@@ -5025,14 +4760,14 @@ final class Helper implements Listener {
         return need == null ? null : x -> x == need;
     }
 
-    private static String mendName(Material m) {
+    static String mendName(Material m) {
         String n = m.name();
         return n.startsWith("WOODEN_") ? "planks" : n.startsWith("IRON_") || n.startsWith("CHAINMAIL_") || n.equals("SHEARS") || n.equals("SHIELD") || n.equals("FLINT_AND_STEEL") ? "iron ingots"
                 : n.startsWith("DIAMOND_") || n.startsWith("NETHERITE_") ? "diamonds" : n.startsWith("GOLDEN_") ? "gold ingots" : n.startsWith("COPPER_") ? "copper ingots"
                 : n.startsWith("STONE_") ? "cobblestone" : n.startsWith("LEATHER_") ? "leather" : n.equals("ELYTRA") ? "phantom membranes" : "string";
     }
 
-    private void repair(Player p, H h) {
+    void repair(Player p, H h) {
         List<Inventory> pay = List.of(bag(p.getUniqueId()), p.getInventory());
         var inv = p.getInventory();
         ItemStack[] worn = inv.getArmorContents();
@@ -5066,7 +4801,7 @@ final class Helper implements Listener {
     }
 
     /** An errand: everything in the chests at a remembered place comes back in the bag (as much as fits). */
-    private void collect(Player p, H h, String where) {
+    void collect(Player p, H h, String where) {
         Location l = placeNamed(p.getUniqueId(), where);
         if (l == null) { say(p, "I don't know a place called " + where + "."); return; }
         List<Inventory> from = stores(l);
@@ -5092,12 +4827,12 @@ final class Helper implements Listener {
     }
 
     /** Buys from a villager within 16 blocks, as many times as asked and affordable. False when nobody sells it. */
-    private boolean trade(Player p, H h, String what, boolean quiet) {
+    boolean trade(Player p, H h, String what, boolean quiet) {
         return trade(p.getUniqueId(), p, p.getLocation(), what, quiet, t -> say(p, t));
     }
 
     /** {@code p} is null when the owner is logged out: then the villagers at home, paid from the bag and the chests there. */
-    private boolean trade(UUID id, Player p, Location at, String what, boolean quiet, Consumer<String> tell) {
+    boolean trade(UUID id, Player p, Location at, String what, boolean quiet, Consumer<String> tell) {
         int times = 1;
         Matcher num = NUMBER.matcher(what);
         if (num.find()) { times = Math.max(1, Math.min(64, Integer.parseInt(num.group(1)))); what = what.substring(0, num.start()) + what.substring(num.end()); }
@@ -5140,11 +4875,11 @@ final class Helper implements Listener {
         return true;
     }
 
-    private List<String> routineList(UUID id) { return new ArrayList<>(conf.getStringList(path(id, "routines"))); }
+    List<String> routineList(UUID id) { return new ArrayList<>(conf.getStringList(path(id, "routines"))); }
 
     /** Standing orders: at a time of day (when the world clock passes it) or every so many minutes. Each order in a
      *  routine is said to the helper as if the owner said it, fifteen seconds apart. */
-    private void routines(Player p, H h) {
+    void routines(Player p, H h) {
         List<String> rs = conf.getStringList(path(p.getUniqueId(), "routines"));
         long t = p.getWorld().getTime(), last = h.lastTime, now = System.currentTimeMillis();
         h.lastTime = t;
@@ -5194,7 +4929,7 @@ final class Helper implements Listener {
     }
 
     /** One block back every other tick, bottom first (everything at once when the server stops). */
-    private void rebuild(boolean all) {
+    void rebuild(boolean all) {
         long now = System.currentTimeMillis();
         for (UUID id : new ArrayList<>(rubble.keySet())) {
             Deque<Object[]> q = rubble.get(id);
@@ -5221,7 +4956,7 @@ final class Helper implements Listener {
 
     // --- Crafting and smelting ---------------------------------------------------------------------------------
 
-    private static List<RecipeChoice> ingredients(Recipe r) {
+    static List<RecipeChoice> ingredients(Recipe r) {
         List<RecipeChoice> need = new ArrayList<>();
         if (r instanceof ShapelessRecipe sl) need.addAll(sl.getChoiceList());
         else if (r instanceof ShapedRecipe sh)
@@ -5233,7 +4968,7 @@ final class Helper implements Listener {
         return need;
     }
 
-    private static String describe(List<RecipeChoice> need) {
+    static String describe(List<RecipeChoice> need) {
         Map<String, Integer> n = new java.util.LinkedHashMap<>();
         for (RecipeChoice c : need) {
             String name = c instanceof RecipeChoice.MaterialChoice mc && !mc.getChoices().isEmpty() ? mc.getChoices().get(0).name()
@@ -5247,12 +4982,12 @@ final class Helper implements Listener {
 
     /** "torch 16", "iron pickaxe": made from the bag, the chests here and at home and the owner's own inventory,
      *  one crafting step (it does not make the planks for the sticks). False when the word is not an item. */
-    private boolean craft(Player p, H h, String what, boolean quiet) {
+    boolean craft(Player p, H h, String what, boolean quiet) {
         return craft(p.getUniqueId(), p, h.w.getLocation(), what, quiet, t -> say(p, t));
     }
 
     /** The bed there is wool for (three of one colour). When there is too little, the sheep within 48 blocks are sheared. */
-    private Material bedFor(UUID id, Player p, Location here) {
+    Material bedFor(UUID id, Player p, Location here) {
         List<Inventory> from = new ArrayList<>(List.of(bag(id)));
         if (p != null) from.add(p.getInventory());
         if (here != null) from.addAll(stores(here));
@@ -5278,7 +5013,7 @@ final class Helper implements Listener {
     }
 
     /** {@code p} is null when the owner is logged out: then from the bag and the chests at home, and into them. */
-    private boolean craft(UUID id, Player p, Location here, String what, boolean quiet, Consumer<String> tell) {
+    boolean craft(UUID id, Player p, Location here, String what, boolean quiet, Consumer<String> tell) {
         int amount = 1;
         Matcher num = NUMBER.matcher(what);
         if (num.find()) { amount = Math.max(1, Math.min(2304, Integer.parseInt(num.group(1)))); what = what.substring(0, num.start()) + what.substring(num.end()); }
@@ -5346,9 +5081,9 @@ final class Helper implements Listener {
         return true;
     }
 
-    private static List<FurnaceInventory> furnaces(Location around) { return furnaces(around, 8); }
+    static List<FurnaceInventory> furnaces(Location around) { return furnaces(around, 8); }
 
-    private static List<FurnaceInventory> furnaces(Location around, int r) {
+    static List<FurnaceInventory> furnaces(Location around, int r) {
         List<FurnaceInventory> out = new ArrayList<>();
         if (around == null) return out;
         World w = around.getWorld();
@@ -5361,7 +5096,7 @@ final class Helper implements Listener {
 
     /** Takes what is done out of the furnaces (here, or else at home), and loads the empty ones from the bag: ores
      *  and raw food, or only the item named. Fuel from the bag too, but only real fuel, never planks or tools. */
-    private void smelt(Player p, H h, String only) {
+    void smelt(Player p, H h, String only) {
         UUID id = p.getUniqueId();
         List<FurnaceInventory> fs = furnaces(h.w.getLocation());
         if (fs.isEmpty()) fs = furnaces(home(id), HOME);
@@ -5412,7 +5147,7 @@ final class Helper implements Listener {
     // --- Healing, a carried light, bridges and steps, riding, finding things ---------------------------------
 
     /** Regeneration for the owner, or the player it looks after, when they are down to four hearts and it is close. */
-    private void heal(Player p, H h, Player who) {
+    void heal(Player p, H h, Player who) {
         long now = System.currentTimeMillis();
         if (who.isDead() || who.getHealth() > 8 || dist2(h.w, who.getLocation()) > 16 * 16 || now - h.healed < 30_000) return;
         h.healed = now;
@@ -5423,13 +5158,13 @@ final class Helper implements Listener {
         remark(p, h, "heal", 0, "Hold still, I am patching you up!", "You are hurt! Let me help.", "Here, this will make you feel better.");
     }
 
-    private void clearLight(H h) {
+    void clearLight(H h) {
         if (h.light != null && h.light.getType() == Material.LIGHT) h.light.setType(Material.AIR);
         h.light = null;
     }
 
     /** An invisible light block that moves with the helper's head. */
-    private void light(UUID id, H h) {
+    void light(UUID id, H h) {
         Block want = null;
         if (flag(id, "light", false) || h.merged) {                      // merged, the owner shines
             Block feet = h.w.getLocation().getBlock(), head = feet.getRelative(BlockFace.UP);
@@ -5442,7 +5177,7 @@ final class Helper implements Listener {
 
     /** A block from the bag (cobblestone when it has none) where the owner is about to step: under the next step
      *  when walking straight ahead, as a step up when looking up. Not when looking down, so you can still climb down. */
-    private void bridge(Player p, H h) {
+    void bridge(Player p, H h) {
         if (p.isFlying() || p.isGliding() || p.isInsideVehicle() || p.isSwimming() || p.isDead() || dist2(h.w, p.getLocation()) > 24 * 24) return;
         Location l = p.getLocation();
         if (l.getPitch() > 40 || !l.clone().subtract(0, 0.1, 0).getBlock().getType().isSolid()) return;    // only with ground under you
@@ -5469,7 +5204,7 @@ final class Helper implements Listener {
         swing(p, h);
     }
 
-    private void startRide(Player p, H h) {
+    void startRide(Player p, H h) {
         release(h);
         h.w.teleport(p.getLocation());
         h.m.teleport(p.getLocation());
@@ -5480,7 +5215,7 @@ final class Helper implements Listener {
         bar(p, "Movement keys steer, jump jumps, sprint runs, sneak gets you off");
     }
 
-    private void stopRide(H h) {
+    void stopRide(H h) {
         if (!h.riding) return;
         h.riding = false;
         h.w.setAware(true);
@@ -5488,7 +5223,7 @@ final class Helper implements Listener {
         h.m.eject();
     }
 
-    private void steer(Player p, H h) {
+    void steer(Player p, H h) {
         Input in = p.getCurrentInput();
         double yaw = Math.toRadians(p.getYaw());
         double f = (in.isForward() ? 1 : 0) - (in.isBackward() ? 1 : 0), side = (in.isLeft() ? 1 : 0) - (in.isRight() ? 1 : 0);
@@ -5499,14 +5234,14 @@ final class Helper implements Listener {
         h.w.setRotation(p.getYaw(), 0);
     }
 
-    private static String direction(Location from, Location to) {
+    static String direction(Location from, Location to) {
         double dx = to.getX() - from.getX(), dz = to.getZ() - from.getZ();
         String[] names = {"south", "south-west", "west", "north-west", "north", "north-east", "east", "south-east"};
         return names[(int) Math.floor(((Math.toDegrees(Math.atan2(-dx, dz)) + 360 + 22.5) % 360) / 45)];
     }
 
     /** A line of sparks from the owner towards a place, a few times, so they see which way to go. */
-    private void point(Player p, Location to) {
+    void point(Player p, Location to) {
         for (int k = 0; k < 6; k++)
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (!p.isOnline() || p.getWorld() != to.getWorld()) return;
@@ -5521,23 +5256,23 @@ final class Helper implements Listener {
 
     /** The nearest structure with that word in its name (village, stronghold, mansion …), or else the nearest block
      *  of that kind within 20 blocks (ores first). False when the word means nothing to it. */
-    private boolean find(Player p, String what, boolean quiet) {
+    boolean find(Player p, String what, boolean quiet) {
         String term = what.trim().toLowerCase(Locale.ROOT).replaceAll("[\\s-]+", "_");
         if (term.isEmpty()) { if (!quiet) p.sendMessage("Usage: /helper find <ore, block or structure>"); return false; }
         UUID fid = p.getUniqueId();
         if (term.matches("nothing|nothing_special|anything|off|stop|none|ingenting|alt")) {      // back to choosing from the stock
             conf.set(path(fid, "seek"), null);
-            seekNow.remove(fid);
+            explorer.seekNow.remove(fid);
             save();
             say(p, "Fine, while exploring I dig for what we have least of again: diamond, gold, iron, coal, lapis, redstone, in that order.");
             return true;
         }
-        String spec = seekSpec(what);
+        String spec = Explorer.seekSpec(what);
         if (spec != null) {
             conf.set(path(fid, "seek"), spec);
             save();
-            awayLog(fid, "looks for " + seekWord(spec) + " first while exploring (asked for)");
-            say(p, "While I explore I look for " + seekWord(spec) + " first, however much we have. Say find nothing to let me choose again.");
+            awayLog(fid, "looks for " + Explorer.seekWord(spec) + " first while exploring (asked for)");
+            say(p, "While I explore I look for " + Explorer.seekWord(spec) + " first, however much we have. Say find nothing to let me choose again.");
         }
         if (term.endsWith("s") && term.length() > 3) term = term.substring(0, term.length() - 1);
         if (term.equals("temple")) term = "pyramid";
@@ -5599,7 +5334,7 @@ final class Helper implements Listener {
 
     /** While farming: one sheep sheared, one cow milked (with a bucket from the bag) or one animal fed (with food
      *  from the bag) every other second. No feeding when there are already twelve of that animal around. */
-    private void animals(Player p, H h) {
+    void animals(Player p, H h) {
         Inventory bag = bag(p.getUniqueId());
         Collection<Entity> around = h.anchor.getWorld().getNearbyEntities(h.anchor, FARM_RANGE, 4, FARM_RANGE);
         for (Entity e : around) {
@@ -5631,26 +5366,26 @@ final class Helper implements Listener {
 
     // --- Merged: the helper is inside its owner -------------------------------------------------------------
 
-    private boolean merged(Entity e) {
+    boolean merged(Entity e) {
         H h = helpers.get(e.getUniqueId());
         return h != null && h.merged;
     }
 
-    private double size(UUID id) { return conf.getDouble(path(id, "size"), 1.0); }
+    double size(UUID id) { return conf.getDouble(path(id, "size"), 1.0); }
 
     /** How many size steps (of 1.5 times) it is away from normal, bigger or smaller: 0 to about 3.4. */
-    private double power(UUID id) { return Math.abs(Math.log(size(id)) / Math.log(1.5)); }
+    double power(UUID id) { return Math.abs(Math.log(size(id)) / Math.log(1.5)); }
 
     /** Bigger or smaller, it hits harder (half as much again per step) and moves faster (15 % per step). */
-    private double damage(UUID id) { return DAMAGE * (1 + 0.5 * power(id)); }
+    double damage(UUID id) { return DAMAGE * (1 + 0.5 * power(id)); }
 
-    private double speed(UUID id) { return 1 + 0.15 * power(id); }
+    double speed(UUID id) { return 1 + 0.15 * power(id); }
 
     /** At the smallest size monsters do not notice it. */
-    private boolean tiny(UUID id) { return size(id) <= 0.26; }
+    boolean tiny(UUID id) { return size(id) <= 0.26; }
 
     /** The owner's own speed while merged follows the helper's size too. */
-    private void speedBoost(Player p, boolean on) {
+    void speedBoost(Player p, boolean on) {
         var a = p.getAttribute(Attribute.MOVEMENT_SPEED);
         if (a == null) return;
         a.removeModifier(speedKey);
@@ -5659,17 +5394,17 @@ final class Helper implements Listener {
     }
 
     /** What is hunting the helper (or its merged owner) loses track of it. */
-    private void forget(Player p, H h) {
+    void forget(Player p, H h) {
         for (Entity e : p.getNearbyEntities(40, 20, 40))
             if (e instanceof Mob m && ownerOf(m) == null && m.getTarget() != null && (m.getTarget() == h.w || m.getTarget() == h.m || (h.merged && m.getTarget() == p)))
                 m.setTarget(null);
     }
 
     /** The size spell: the figure, and the owner too while they are merged. */
-    private static final double MIN_SIZE = 0.1, MAX_SIZE = 6.0;
+    static final double MIN_SIZE = 0.1, MAX_SIZE = 6.0;
 
     /** Merged: a shining being, with light that drifts around the body (no outline), and the helper's own looks. */
-    private void shine(Player p, boolean on) {
+    void shine(Player p, boolean on) {
         org.bukkit.scoreboard.Team t = Bukkit.getScoreboardManager().getMainScoreboard().getTeam("helper_shine");
         if (t != null && t.hasEntry(p.getName())) t.removeEntry(p.getName());
         p.setGlowing(false);
@@ -5678,7 +5413,7 @@ final class Helper implements Listener {
 
     /** The owner takes the helper's skin (given back by ownBody). A skin from the pack must be signed first: the chat
      *  bridge does that through mineskin.org when the server has a key, and answers with "mergeskin". */
-    private void wearSkin(Player p, boolean ask) {
+    void wearSkin(Player p, boolean ask) {
         UUID id = p.getUniqueId();
         String skin = conf.getString(path(id, "skin"));
         if (skin == null || !skin.startsWith("pack:")) return;
@@ -5695,7 +5430,7 @@ final class Helper implements Listener {
         p.setPlayerProfile(prof);
     }
 
-    private void resize(Player p, H h, double v, boolean show) {
+    void resize(Player p, H h, double v, boolean show) {
         UUID id = p.getUniqueId();
         v = Math.max(MIN_SIZE, Math.min(MAX_SIZE, v));
         if (Math.abs(v - 1.0) < 0.1) v = 1.0;
@@ -5714,7 +5449,7 @@ final class Helper implements Listener {
     }
 
     /** The owner gets their own size back and stops glowing (after a split, a logout or a crash while merged). */
-    private void ownBody(Player p) {
+    void ownBody(Player p) {
         String k = path(p.getUniqueId(), "ownsize");
         if (!conf.contains(k)) return;
         set(p, Attribute.SCALE, conf.getDouble(k, 1.0));
@@ -5739,18 +5474,18 @@ final class Helper implements Listener {
         save();
     }
 
-    private void swing(Player p, H h) {
+    void swing(Player p, H h) {
         if (h.merged) p.swingMainHand();
         else h.m.swingMainHand();
     }
 
     /** Walks towards a place: the wolf finds its own way, a merged owner is pushed there tick by tick (autopilot). */
-    private void go(H h, Location to, double speed) {
+    void go(H h, Location to, double speed) {
         if (h.merged) h.goal = to;
         else h.w.getPathfinder().moveTo(to, speed);
     }
 
-    private void merge(Player p, H h) {
+    void merge(Player p, H h) {
         if (h.merged) { say(p, "We already are one."); return; }
         release(h);
         h.merged = true;
@@ -5774,7 +5509,7 @@ final class Helper implements Listener {
         say(p, "We are one now. Nothing can hurt you, and you hit as hard as I do. You can fly: double-tap jump. Tell me what to do and your body does it; move or swing and you are in control again. Say split to let me out.");
     }
 
-    private void split(Player p, H h) {
+    void split(Player p, H h) {
         if (!h.merged) { say(p, "We are not merged."); return; }
         release(h);
         h.merged = false;
@@ -5793,7 +5528,7 @@ final class Helper implements Listener {
     }
 
     /** The owner takes over from the autopilot. */
-    private void control(Player p, H h) {
+    void control(Player p, H h) {
         h.job = Job.NONE;
         h.queue = new ArrayDeque<>();
         h.goal = null;
@@ -5802,7 +5537,7 @@ final class Helper implements Listener {
 
     /** Every tick while merged: the hidden wolf stays on the owner (everything else measures from it), a movement
      *  key ends the job, and otherwise the owner is walked towards where the job needs them. */
-    private void autopilot(Player p, H h) {
+    void autopilot(Player p, H h) {
         Location at = p.getLocation();
         if (h.w.getWorld() != at.getWorld() || h.w.getLocation().distanceSquared(at) > 0.01) h.w.teleport(at);
         if (!p.getAllowFlight()) p.setAllowFlight(true);                   // merged you fly (the fly power turns it off on world changes)
@@ -5838,7 +5573,7 @@ final class Helper implements Listener {
     }
 
     /** Merged, monsters within four blocks are struck twice a second (the helper fighting through its owner). */
-    private void aura(Player p, H h) {
+    void aura(Player p, H h) {
         if (!h.defend || flag(p.getUniqueId(), "passive", false) || p.isDead()) return;     // merged, the owner fights for themself unless they say defend
         for (Entity e : p.getNearbyEntities(4, 3, 4))
             if (foe(e) && e instanceof LivingEntity le) {
@@ -5868,7 +5603,7 @@ final class Helper implements Listener {
 
     // --- Gear: what it wears and holds --------------------------------------------------------------------
 
-    private ItemStack[] gear(UUID id) {
+    ItemStack[] gear(UUID id) {
         return gear.computeIfAbsent(id, k -> {
             ItemStack[] g = new ItemStack[GEAR.length];
             ItemStack[] saved = load(id, "gear");
@@ -5877,16 +5612,16 @@ final class Helper implements Listener {
         });
     }
 
-    private static boolean empty(ItemStack i) { return i == null || i.isEmpty(); }
+    static boolean empty(ItemStack i) { return i == null || i.isEmpty(); }
 
     /** Shows the gear on the figure. With nothing in its hand it holds a netherite sword (for show, not to take).
      *  Waiting, its hands are empty (that is how you see it waits); on a job it holds the tool for the job. */
-    private String shownKey(UUID id, H h) { return h.stance + ":" + h.job + ":" + style(id) + ":" + h.tool; }
+    String shownKey(UUID id, H h) { return h.stance + ":" + h.job + ":" + style(id) + ":" + h.tool; }
 
     /** What it holds for the next three seconds: the sword in a fight, the axe at a tree, the shovel in the dirt. */
-    private void wield(H h, Material m) { h.tool = m; h.toolTick = tick; }
+    void wield(H h, Material m) { h.tool = m; h.toolTick = tick; }
 
-    private static Material toolFor(Material m) {
+    static Material toolFor(Material m) {
         if (m.isAir() || Tag.LEAVES.isTagged(m)) return null;
         String n = m.name();
         if (Tag.LOGS.isTagged(m) || Tag.PLANKS.isTagged(m) || n.contains("WOOD") || n.endsWith("_STEM") || m == Material.PUMPKIN || m == Material.MELON || m == Material.BAMBOO) return Material.NETHERITE_AXE;
@@ -5895,7 +5630,7 @@ final class Helper implements Listener {
         return m.isSolid() && m.getHardness() >= 0.8f ? Material.NETHERITE_PICKAXE : null;
     }
 
-    private void dress(UUID id, H h) {
+    void dress(UUID id, H h) {
         ItemStack[] g = gear(id);
         String style = style(id);
         h.shown = shownKey(id, h);
@@ -5917,7 +5652,7 @@ final class Helper implements Listener {
     }
 
     /** Which slot the helper would put this in, or -1 when it is not something to wear or wield. */
-    private static int gearSlot(ItemStack it) {
+    static int gearSlot(ItemStack it) {
         if (empty(it)) return -1;
         EquipmentSlot s = it.getType().getEquipmentSlot();
         if (s == EquipmentSlot.HAND && !HAND_GEAR.matcher(it.getType().name()).matches()) return -1;
@@ -5925,12 +5660,12 @@ final class Helper implements Listener {
         return -1;
     }
 
-    private static void give(Player p, ItemStack it) {
+    static void give(Player p, ItemStack it) {
         if (empty(it)) return;
         for (ItemStack rest : p.getInventory().addItem(it).values()) p.getWorld().dropItem(p.getLocation(), rest);
     }
 
-    private void equip(Player p, H h, int slot) {
+    void equip(Player p, H h, int slot) {
         ItemStack held = p.getInventory().getItemInMainHand();
         ItemStack one = held.clone();
         one.setAmount(1);
@@ -5948,17 +5683,17 @@ final class Helper implements Listener {
 
     // --- Jobs: mining a vein or tree, harvesting a field ----------------------------------------------------
 
-    private static String vein(Material m) { return m.name().replace("DEEPSLATE_", ""); }    // ore and deepslate ore are one vein
+    static String vein(Material m) { return m.name().replace("DEEPSLATE_", ""); }    // ore and deepslate ore are one vein
 
-    private static final Map<String, String> MINE_NB = Map.ofEntries(Map.entry("jord", "dirt"), Map.entry("grus", "gravel"), Map.entry("stein", "stone"), Map.entry("leire", "clay"),
+    static final Map<String, String> MINE_NB = Map.ofEntries(Map.entry("jord", "dirt"), Map.entry("grus", "gravel"), Map.entry("stein", "stone"), Map.entry("leire", "clay"),
             Map.entry("kull", "coal_ore"), Map.entry("jern", "iron_ore"), Map.entry("gull", "gold_ore"), Map.entry("kobber", "copper_ore"), Map.entry("diamant", "diamond_ore"),
             Map.entry("diamanter", "diamond_ore"), Map.entry("snø", "snow_block"), Map.entry("coal", "coal_ore"), Map.entry("iron", "iron_ore"), Map.entry("gold", "gold_ore"),
             Map.entry("copper", "copper_ore"), Map.entry("diamond", "diamond_ore"), Map.entry("diamonds", "diamond_ore"), Map.entry("redstone", "redstone_ore"), Map.entry("grass", "grass_block"));
 
     /** "sand", "red sand", "grus": the block that is meant, or null. */
-    private static final Set<String> WOOD_WORDS = Set.of("wood", "tree", "trees", "a tree", "log", "logs", "timber", "ved", "tre", "trær", "et tre", "tømmer");
+    static final Set<String> WOOD_WORDS = Set.of("wood", "tree", "trees", "a tree", "log", "logs", "timber", "ved", "tre", "trær", "et tre", "tømmer");
 
-    private static Material mineKind(String what) {
+    static Material mineKind(String what) {
         String w = what.trim().toLowerCase(Locale.ROOT).replace(' ', '_');
         if (w.isEmpty()) return null;
         w = MINE_NB.getOrDefault(w, w);
@@ -5969,10 +5704,10 @@ final class Helper implements Listener {
         return null;
     }
 
-    private void startMine(Player p, H h) { startMine(p, h, ""); }
+    void startMine(Player p, H h) { startMine(p, h, ""); }
 
     /** Mine what its owner looks at, or, with a word ("mine sand"), the nearest of that kind and nothing else. */
-    private void startMine(Player p, H h, String what) {
+    void startMine(Player p, H h, String what) {
         Block t = p.getTargetBlockExact(6);
         boolean wood = WOOD_WORDS.contains(what.trim().toLowerCase(Locale.ROOT));
         Material want = wood ? null : mineKind(what);
@@ -6007,11 +5742,11 @@ final class Helper implements Listener {
         mineFrom(p, h, t);
     }
 
-    private final Set<UUID> oreSeek = new HashSet<>();
-    private static final int ORE_RANGE = 1024, ORE_NEW = 400;     // how far it looks, and how many chunks of new land it may make on the way
+    final Set<UUID> oreSeek = new HashSet<>();
+    static final int ORE_RANGE = 1024, ORE_NEW = 400;     // how far it looks, and how many chunks of new land it may make on the way
 
     /** No ore close by: the land around is searched, nearest first and a little at a time; new land is made when needed. */
-    private void seekBlock(Player p, Set<Material> kinds, String name, Consumer<Block> then) {
+    void seekBlock(Player p, Set<Material> kinds, String name, Consumer<Block> then) {
         UUID id = p.getUniqueId();
         if (!oreSeek.add(id)) { say(p, "I am still looking."); return; }
         say(p, "I see no " + name + " close by. I look further away. One moment.");
@@ -6058,14 +5793,14 @@ final class Helper implements Listener {
         }, 1L, 1L);
     }
 
-    private final Set<UUID> mobSeek = new HashSet<>(), woolTried = new HashSet<>();
-    private static final Map<String, EntityType> MOB_FOR = Map.ofEntries(Map.entry("wool", EntityType.SHEEP), Map.entry("mutton", EntityType.SHEEP), Map.entry("ull", EntityType.SHEEP),
+    final Set<UUID> mobSeek = new HashSet<>(), woolTried = new HashSet<>();
+    static final Map<String, EntityType> MOB_FOR = Map.ofEntries(Map.entry("wool", EntityType.SHEEP), Map.entry("mutton", EntityType.SHEEP), Map.entry("ull", EntityType.SHEEP),
             Map.entry("sau", EntityType.SHEEP), Map.entry("sauer", EntityType.SHEEP), Map.entry("leather", EntityType.COW), Map.entry("beef", EntityType.COW), Map.entry("milk", EntityType.COW),
             Map.entry("ku", EntityType.COW), Map.entry("kyr", EntityType.COW), Map.entry("lær", EntityType.COW), Map.entry("feather", EntityType.CHICKEN), Map.entry("egg", EntityType.CHICKEN),
             Map.entry("høne", EntityType.CHICKEN), Map.entry("høner", EntityType.CHICKEN), Map.entry("fjær", EntityType.CHICKEN), Map.entry("pork", EntityType.PIG), Map.entry("porkchop", EntityType.PIG),
             Map.entry("gris", EntityType.PIG), Map.entry("griser", EntityType.PIG), Map.entry("hest", EntityType.HORSE), Map.entry("hester", EntityType.HORSE));
 
-    private static EntityType mobFor(String term) {
+    static EntityType mobFor(String term) {
         EntityType t = MOB_FOR.get(term);
         if (t != null) return t;
         try { t = EntityType.valueOf(term.toUpperCase(Locale.ROOT)); } catch (IllegalArgumentException e) { return null; }
@@ -6074,7 +5809,7 @@ final class Helper implements Listener {
 
     /** The nearest living thing of a kind: those already around first, then the land outwards, a few chunks at a time
      *  (their animals have to be read in before they can be seen). {@code then} gets null when there is none. */
-    private void seekMob(Player p, EntityType type, java.util.function.Predicate<Entity> ok, Consumer<Entity> then) {
+    void seekMob(Player p, EntityType type, java.util.function.Predicate<Entity> ok, Consumer<Entity> then) {
         UUID id = p.getUniqueId();
         World w = p.getWorld();
         Location from = p.getLocation();
@@ -6130,7 +5865,7 @@ final class Helper implements Listener {
     }
 
     /** No wool: she finds the nearest sheep, goes there, shears the flock and comes back. */
-    private void woolTrip(Player p, Runnable then) {
+    void woolTrip(Player p, Runnable then) {
         UUID id = p.getUniqueId();
         seekMob(p, EntityType.SHEEP, e -> e instanceof Sheep sh && sh.isAdult() && !sh.isSheared(), e -> {
             if (e == null) { say(p, "I found no sheep with wool on within " + ORE_RANGE + " blocks."); then.run(); return; }
@@ -6157,7 +5892,7 @@ final class Helper implements Listener {
         });
     }
 
-    private void mineFrom(Player p, H h, Block t) {
+    void mineFrom(Player p, H h, Block t) {
         if (t == null || t.getType().isAir()) { p.sendMessage("Look at the block your helper should mine (within 6 blocks), or name it: mine sand."); return; }
         if (t.getType().getHardness() < 0 || t.getState() instanceof Container) { say(p, "I can't mine that."); return; }
         String kind = vein(t.getType());
@@ -6182,7 +5917,7 @@ final class Helper implements Listener {
         say(p, "On it: " + h.queue.size() + " " + (h.queue.size() == 1 ? "block" : "blocks") + " of " + word(t.getType()) + ", and nothing else.");
     }
 
-    private void startFarm(Player p, H h) {
+    void startFarm(Player p, H h) {
         release(h);
         h.job = Job.FARM;
         h.anchor = h.w.getLocation();
@@ -6190,7 +5925,7 @@ final class Helper implements Listener {
         say(p, "I will harvest and replant around here. Say stop when you want me back.");
     }
 
-    private void startFish(Player p, H h) {
+    void startFish(Player p, H h) {
         Block c = h.w.getLocation().getBlock(), water = null;
         double best = Double.MAX_VALUE;
         for (int x = -8; x <= 8; x++) for (int y = -4; y <= 1; y++) for (int z = -8; z <= 8; z++) {
@@ -6206,13 +5941,13 @@ final class Helper implements Listener {
         say(p, "Gone fishing! Say stop when you want me back.");
     }
 
-    private static final Material[] JUNK = {Material.LILY_PAD, Material.LILY_PAD, Material.BOWL, Material.LEATHER, Material.LEATHER_BOOTS, Material.ROTTEN_FLESH,
+    static final Material[] JUNK = {Material.LILY_PAD, Material.LILY_PAD, Material.BOWL, Material.LEATHER, Material.LEATHER_BOOTS, Material.ROTTEN_FLESH,
             Material.STICK, Material.STRING, Material.BONE, Material.BONE, Material.INK_SAC, Material.TRIPWIRE_HOOK, Material.BAMBOO};
 
     /** One catch, with the odds of a rod with luck of the sea III: 11.3 % treasure (an enchanted book, bow or rod,
      *  a name tag, a saddle or a nautilus shell), 4.2 % junk, the rest fish. Rolled here: the game's own fishing
      *  tables want the rod that was cast, and there is no way to hand them one. */
-    private Collection<ItemStack> fishLoot(Location at) {
+    Collection<ItemStack> fishLoot(Location at) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         int roll = r.nextInt(1000);
         if (roll < 113) {
@@ -6235,7 +5970,7 @@ final class Helper implements Listener {
         return List.of(new ItemStack(f < 60 ? Material.COD : f < 85 ? Material.SALMON : f < 98 ? Material.PUFFERFISH : Material.TROPICAL_FISH));
     }
 
-    private void fish(Player p, H h) {
+    void fish(Player p, H h) {
         Wolf w = h.w;
         if (h.anchor.getBlock().getType() != Material.WATER) { release(h); say(p, "The water is gone, so I stopped fishing."); return; }
         double dx = h.anchor.getX() - w.getX(), dz = h.anchor.getZ() - w.getZ();
@@ -6274,7 +6009,7 @@ final class Helper implements Listener {
         }
     }
 
-    private static boolean ripe(Block b) {
+    static boolean ripe(Block b) {
         Material t = b.getType();
         if (SEEDS.containsKey(t)) return b.getBlockData() instanceof Ageable a && a.getAge() == a.getMaximumAge();
         if (t == Material.MELON || t == Material.PUMPKIN) {              // only the ones growing from a stem, not decoration
@@ -6288,7 +6023,7 @@ final class Helper implements Listener {
                 && b.getRelative(0, -2, 0).getType() != Material.SUGAR_CANE;   // the second block: the bottom one stays
     }
 
-    private static Collection<ItemStack> drops(Block b) {
+    static Collection<ItemStack> drops(Block b) {
         for (Material tool : TOOLS) {
             Collection<ItemStack> d = b.getDrops(ench(tool));
             if (!d.isEmpty()) return d;
@@ -6296,13 +6031,13 @@ final class Helper implements Listener {
         return List.of();
     }
 
-    private static void crack(Block b) {
+    static void crack(Block b) {
         Location l = b.getLocation().add(0.5, 0.5, 0.5);
         b.getWorld().spawnParticle(Particle.BLOCK, l, 20, 0.25, 0.25, 0.25, b.getBlockData());
         b.getWorld().playSound(l, b.getBlockSoundGroup().getBreakSound(), 0.8f, 1f);
     }
 
-    private Collection<ItemStack> harvest(Block b) {
+    Collection<ItemStack> harvest(Block b) {
         Material t = b.getType();
         if (b.getBlockData() instanceof Ageable a && SEEDS.containsKey(t)) {
             List<ItemStack> d = new ArrayList<>(b.getDrops(ench(Material.NETHERITE_HOE)));     // fortune III
@@ -6326,7 +6061,7 @@ final class Helper implements Listener {
         return d;
     }
 
-    private void work(Player p, H h) {
+    void work(Player p, H h) {
         Wolf w = h.w;
         if (h.job == Job.FISH) { fish(p, h); return; }
         if (h.job == Job.FARM && h.queue.isEmpty() && tick % 40 == 0) {
@@ -6372,7 +6107,7 @@ final class Helper implements Listener {
         } else if (!h.merged) walk(h, h.anchor, dist2(w, h.anchor), 5, 1.0);
     }
 
-    private static Collection<ItemStack> mineBlock(Block b) {
+    static Collection<ItemStack> mineBlock(Block b) {
         Collection<ItemStack> d = drops(b);
         crack(b);
         b.setType(Material.AIR);
@@ -6459,14 +6194,14 @@ final class Helper implements Listener {
         if (h.hold) carryOn(p, h); else hold(p, h);                    // a click: stand still and watch me; a click more: carry on
     }
 
-    private static final String[] FLOWER_THANKS = {
+    static final String[] FLOWER_THANKS = {
             "Oh, %f! That was so thoughtful of you.", "For me? Thank you, %n. It is lovely.", "You remembered that I like flowers! Thank you.",
             "%F! I will keep it close. Thank you, %n.", "That is the nicest thing anyone has done for me today.", "It smells wonderful. Thank you!",
             "You are too kind, %n. I love it.", "A flower, for me? Now I am blushing.", "Thank you! It makes me think of you, %n.",
             "How pretty! You always know how to make me smile.", "I will treasure it. That was sweet of you.", "Aww. Thank you, %n. You made my day."};
 
     /** A flower in the owner's hand, and a click on the helper: it takes the flower, hearts rise around it and it says thank you. */
-    private boolean flowerGift(Player p, H h) {
+    boolean flowerGift(Player p, H h) {
         ItemStack it = p.getInventory().getItemInMainHand();
         if (empty(it)) return false;
         Material m = it.getType();
@@ -6489,7 +6224,7 @@ final class Helper implements Listener {
     }
 
     /** Remembers what it is doing (a job, a guard post, a building) so that "continue" can take it up again. */
-    private void snap(UUID id, H h) {
+    void snap(UUID id, H h) {
         Site s = sites.get(id);
         if (s != null && !s.paused) { s.paused = true; h.was = new Object[] {"site"}; return; }
         if (h.hold || (h.job == Job.NONE && h.stance != Stance.GUARD)) return;          // nothing going on: keep what was remembered before
@@ -6498,7 +6233,7 @@ final class Helper implements Listener {
 
     /** Clicked on: it stands still and watches its owner, whatever it was doing, and fights nothing until it hears continue, come or help. */
     /** Sleep: it walks to the nearest free bed and lies down, until morning or the next order. */
-    private void sleep(Player p, H h) {
+    void sleep(Player p, H h) {
         Location o = h.w.getLocation();
         Block best = null;
         double bd = Double.MAX_VALUE;
@@ -6523,7 +6258,7 @@ final class Helper implements Listener {
         say(p, night(o.getWorld()) ? "Good night, " + nick(p) + ". Wake me if you need me." : "A nap? Gladly. Wake me if you need me.");
     }
 
-    private void hold(Player p, H h) {
+    void hold(Player p, H h) {
         snap(p.getUniqueId(), h);
         release(h);
         h.hold = true;
@@ -6538,7 +6273,7 @@ final class Helper implements Listener {
 
     /** "continue": back to what it did before it was interrupted. */
     @SuppressWarnings("unchecked")
-    private void carryOn(Player p, H h) {
+    void carryOn(Player p, H h) {
         UUID id = p.getUniqueId();
         Object[] was = h.was;
         h.was = null;
@@ -6556,7 +6291,7 @@ final class Helper implements Listener {
     }
 
     /** "help": it drops everything, comes at once and fights what is around its owner. "continue" afterwards takes the job up again. */
-    private void rescue(Player p, H h) {
+    void rescue(Player p, H h) {
         UUID id = p.getUniqueId();
         snap(id, h);
         release(h);
@@ -6565,7 +6300,7 @@ final class Helper implements Listener {
         say(p, flag(id, "passive", false) ? "I am here! (You told me not to fight; say fight and I will.)" : "I am here! Stay behind me.");
     }
 
-    private void stay(Player p, H h, boolean sit) {
+    void stay(Player p, H h, boolean sit) {
         snap(p.getUniqueId(), h);
         release(h);
         if (sit) {
@@ -6693,7 +6428,7 @@ final class Helper implements Listener {
 
     /** Free text for the helper: the words it knows become a command, the rest goes to the chat bridge (which follows
      *  the server log, asks its model and answers with /helper say or another /helper command). */
-    private void talk(Player p, String text) {
+    void talk(Player p, String text) {
         String clean = POLITE.matcher(text.replaceAll("[.!?\\s]+$", "").trim()).replaceAll("").trim();
         String t = clean.toLowerCase(Locale.ROOT);
         if (t.isEmpty()) { command(p, new String[] {"come"}); return; }
@@ -6759,13 +6494,13 @@ final class Helper implements Listener {
 
     // --- /helper -------------------------------------------------------------------------------------
 
-    private static final List<String> SUBS = List.of("follow", "stay", "come", "guard", "passive", "fight", "mine", "farm", "fish", "torch", "light", "bridge",
+    static final List<String> SUBS = List.of("follow", "stay", "come", "guard", "passive", "fight", "mine", "farm", "fish", "torch", "light", "bridge",
             "home", "sethome", "unload", "fetch", "find", "ride", "show", "merge", "split", "big", "small", "normal", "max", "min", "defend", "help",
             "attack", "join", "craft", "smelt", "remember", "goto", "places", "forget", "watch", "dance", "callme", "sleep", "wake",
             "tidy", "shear", "repair", "collect", "trade", "give", "routine", "routines",
             "scout", "wayback", "style", "hide", "tag", "treasure", "hint", "talk", "sum", "log", "finds", "build", "personality", "continue", "rescue", "mobfarm",
             "pickup", "bag", "unequip", "stop", "quiet", "skin", "name", "dismiss", "ask");
-    private static final String USAGE = "/helper follow | stay | come | guard | passive | fight | mine | farm | fish | torch | light | bridge | home | sethome | unload | fetch <item> [n] | find <thing> | ride | show | merge | split | big | small | normal | help <player> | attack | join <player> | craft <item> [n] | smelt [item] | remember <name> | goto <name> | places | watch | dance | pickup | bag | unequip | stop"
+    static final String USAGE = "/helper follow | stay | come | guard | passive | fight | mine | farm | fish | torch | light | bridge | home | sethome | unload | fetch <item> [n] | find <thing> | ride | show | merge | split | big | small | normal | help <player> | attack | join <player> | craft <item> [n] | smelt [item] | remember <name> | goto <name> | places | watch | dance | pickup | bag | unequip | stop"
             + " | quiet | skin <name> | name <name> | dismiss. Right-click it: stay/follow, or give it the armour or weapon in your hand."
             + " Sneak + right-click: its bag. Say its name in chat and it comes; its name and a question, and it answers.";
 
@@ -6805,14 +6540,14 @@ final class Helper implements Listener {
     }
 
     /** Turns a yes/no setting around (or sets it with on/off) and returns the new value. */
-    private boolean toggle(UUID id, String k, boolean def, String[] args) {
+    boolean toggle(UUID id, String k, boolean def, String[] args) {
         boolean v = args.length > 1 ? args[1].equalsIgnoreCase("on") : !flag(id, k, def);
         conf.set(path(id, k), v);
         save();
         return v;
     }
 
-    private void command(Player p, String[] args) {
+    void command(Player p, String[] args) {
         UUID id = p.getUniqueId();
         String sub = args.length == 0 ? "" : args[0].toLowerCase(Locale.ROOT);
         String rest = args.length < 2 ? "" : String.join(" ", Arrays.copyOfRange(args, 1, args.length));
@@ -7084,7 +6819,7 @@ final class Helper implements Listener {
                     return;
                 }
                 if (a1.equals("mine")) {
-                    String target = args.length < 3 ? null : oreTarget(String.join(" ", Arrays.copyOfRange(args, 2, args.length)));
+                    String target = args.length < 3 ? null : Explorer.oreTarget(String.join(" ", Arrays.copyOfRange(args, 2, args.length)));
                     if (target == null) { say(p, "Dig for what? Say for example: watch mine diamond. I know diamond, coal, iron, gold, copper, redstone, lapis, emerald, quartz, ancient debris and obsidian."); return; }
                     conf.set(path(id, "away.target"), target);
                     awayOre.remove(id);
