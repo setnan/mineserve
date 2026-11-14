@@ -228,6 +228,7 @@ import org.bukkit.util.Vector;
  * /helper say <text>            used by the chat bridge: the helper says this to you
  */
 final class Helper implements Listener {
+    final AwayWork awayWork = new AwayWork(this);
     final Builder builder = new Builder(this);
     final Explorer explorer = new Explorer(this);
     static final double DAMAGE = 20;       // per bite/hit: most monsters die in one or two
@@ -442,20 +443,13 @@ final class Helper implements Listener {
     final Map<UUID, ItemStack[]> gear = new HashMap<>();
     final Set<UUID> dirty = new HashSet<>();                       // bags changed since the last save
     final Map<UUID, String> names = new ConcurrentHashMap<>();     // lower-case helper names, read by the chat thread
-    final Map<UUID, List<long[]>> awayHeld = new HashMap<>();      // home chunks kept loaded for work while the owner is away
-    final Map<UUID, World> awayWorld = new HashMap<>();
-    final Map<UUID, Long> awayTime = new HashMap<>();              // routines while away: the world time at the last look
-    final Map<String, Long> awayRan = new HashMap<>();
     final Map<UUID, Map<String, Integer>> awayGot = new HashMap<>();   // what it got since the last line in the log, by kind
-    final Map<UUID, Map<String, Integer>> awaySeen = new HashMap<>();  // the counters at the last ten-minute line
     final Map<String, Long> awayTold = new HashMap<>();            // warnings and meetings already in the log
-    final Map<UUID, Integer> awayMinute = new HashMap<>();         // what it got since the last line in the log
     static final List<String> AWAY_JOBS = List.of("guard", "fish", "farm", "smelt", "mine", "explore", "home", "mobfarm");
     static final Map<String, String> ORE_WORDS = Map.ofEntries(Map.entry("diamant", "DIAMOND"), Map.entry("diamanter", "DIAMOND"), Map.entry("kull", "COAL"),
             Map.entry("jern", "IRON"), Map.entry("gull", "GOLD"), Map.entry("kobber", "COPPER"), Map.entry("smaragd", "EMERALD"), Map.entry("smaragder", "EMERALD"),
             Map.entry("kvarts", "QUARTZ"), Map.entry("netherite", "ANCIENT_DEBRIS"), Map.entry("debris", "ANCIENT_DEBRIS"), Map.entry("obsidian", "OBSIDIAN"));
     final Map<UUID, Deque<Block>> awayOre = new HashMap<>();       // ore it has seen and not dug out yet
-    final Map<UUID, Integer> awayIdle = new HashMap<>();         // ten-second rounds in a row with nothing to do in the field
     final Map<UUID, Integer> awayScan = new HashMap<>();           // how far out it has looked for ore
     final Set<UUID> talking = ConcurrentHashMap.newKeySet();       // talk mode: all their chat goes to the helper
     final Map<UUID, Long> asked = new HashMap<>();
@@ -671,7 +665,7 @@ final class Helper implements Listener {
                 if (active(p) && !helpers.containsKey(p.getUniqueId())) spawn(p, null);
         if (tick % 600 == 0) flushBags();
         if (tick == 100) builder.loadSites();                         // the worlds are loaded by now
-        if (tick % 200 == 0) away();
+        if (tick % 200 == 0) awayWork.away();
         if (tick % 100 == 0) banter();
         if (tick % 2 == 0 && !rubble.isEmpty()) rebuild(false);
         for (UUID id : new ArrayList<>(helpers.keySet())) {
@@ -680,7 +674,7 @@ final class Helper implements Listener {
             if (p == null) {                                   // logged out: only a helper on watch stays, while someone is online
                 if (!h.watching || !h.w.isValid() || !h.m.isValid()) { despawn(id, false); continue; }
                 if (tick % 10 == 0 && !paused()) guard(id, h);
-                if (tick % 20 == 0 && !paused()) { shut(h.w.getLocation(), 4, h.w); awayMeet(id, h.w.getLocation()); }
+                if (tick % 20 == 0 && !paused()) { shut(h.w.getLocation(), 4, h.w); awayWork.awayMeet(id, h.w.getLocation()); }
                 Location l = h.w.getLocation();
                 l.setPitch(0);
                 if (h.m.getWorld() != l.getWorld() || h.m.getLocation().distanceSquared(l) > 0.0001) h.m.teleport(l);
@@ -772,7 +766,7 @@ final class Helper implements Listener {
         if (tick % 20 == 0 && !h.merged && far > 12 * 12) {
             shut(w.getLocation(), 4, w);
         }      // on its own: doors and gates shut behind it
-        if (tick % 40 == 0) awayMeet(id, w.getLocation());
+        if (tick % 40 == 0) awayWork.awayMeet(id, w.getLocation());
         if (tick % 100 == 0 && GoldenChicken.instance != null)
             for (Entity e : w.getNearbyEntities(12, 6, 12)) if (e instanceof org.bukkit.entity.Chicken c && GoldenChicken.instance.isGolden(c)) goldSeen(id, c, null);
         Player ward = h.ward == null ? null : Bukkit.getPlayer(h.ward);
@@ -821,7 +815,7 @@ final class Helper implements Listener {
         if (h.job != Job.NONE) { work(p, h); return; }
         if (h.farm != null && System.currentTimeMillis() - h.farmSort > 60_000 && h.anchor != null) {
             h.farmSort = System.currentTimeMillis();
-            sortFarm(id, h.anchor);
+            awayWork.sortFarm(id, h.anchor);
         }
         if (swordReach(h)) { h.idle = null; h.look = null; return; }
         boolean busy = w.getTarget() != null && !w.getTarget().isDead();
@@ -2046,20 +2040,6 @@ final class Helper implements Listener {
         if (awayTold.putIfAbsent(id + ":warn:" + key, System.currentTimeMillis()) == null) awayLog(id, "NOTE: " + text);
     }
 
-    /** Other players near the helper (or near home, when it works there without its figure): in the log at once,
-     *  and then not again for ten minutes. */
-    void awayMeet(UUID id, Location around) {
-        long now = System.currentTimeMillis();
-        for (Player other : around.getNearbyPlayers(16)) {
-            if (other.getUniqueId().equals(id) || other.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
-            Long last = awayTold.get(id + ":met:" + other.getUniqueId());
-            if (last != null && now - last < 600_000) continue;
-            awayTold.put(id + ":met:" + other.getUniqueId(), now);
-            Location l = other.getLocation();
-            awayLog(id, "met " + other.getName() + " at " + l.getWorld().getName() + " " + l.getBlockX() + " " + l.getBlockY() + " " + l.getBlockZ());
-        }
-    }
-
     void awayLog(UUID id, String text) {
         String who = Bukkit.getOfflinePlayer(id).getName();
         String shown = text.startsWith("FOUND ") ? "found " + text.substring(6).toLowerCase(Locale.ROOT) : text;
@@ -2074,12 +2054,6 @@ final class Helper implements Listener {
         else Bukkit.getConsoleSender().sendMessage(Component.text("[Creator] " + line, c));               // colours in the console
     }
 
-    void awayLet(UUID id) {
-        List<long[]> held = awayHeld.remove(id);
-        World w = awayWorld.remove(id);
-        if (held != null && w != null) for (long[] c : held) w.removePluginChunkTicket((int) c[0], (int) c[1], plugin);
-    }
-
     int addToBag(UUID id, Collection<ItemStack> items) {
         Inventory bag = bag(id);
         int n = 0;
@@ -2089,241 +2063,6 @@ final class Helper implements Listener {
             n += it.getAmount() - (rest.isEmpty() ? 0 : rest.values().iterator().next().getAmount());
         }
         if (n > 0) dirty.add(id);
-        return n;
-    }
-
-    /** Every ten seconds, for everyone who is logged out with a job for their helper. */
-    void away() {
-        if (paused()) { for (UUID id : new ArrayList<>(awayHeld.keySet())) { awayLog(id, "paused"); awayLet(id); } return; }
-        long max = (long) (conf.getDouble("settings.away-hours", 2) * 3_600_000L);
-        boolean changed = false;
-        for (String k : conf.getKeys(false)) {
-            UUID id;
-            try { id = UUID.fromString(k); } catch (IllegalArgumentException e) { continue; }
-            String job = conf.getString(path(id, "away.job"), "");
-            if (job.isEmpty() && !conf.getBoolean(path(id, "away.rest"), false) && conf.getBoolean(path(id, "active")) && home(id) != null) {
-                job = "home";                                              // nothing to do: the chores at home
-                conf.set(path(id, "away.job"), job);
-                conf.set(path(id, "watch"), true);
-                changed = true;
-            }
-            if (conf.getBoolean(path(id, "away.full"), false) && !conf.contains(path(id, "away.why")) && home(id) != null && myBarrel(id, home(id).getWorld()) != null) {
-                conf.set(path(id, "away.full"), null);                     // stopped because the chests were full, but there is a magic barrel now
-                changed = true;
-            }
-            long ms = conf.getLong(path(id, "away.ms"), 0);
-            if (Bukkit.getPlayer(id) == null && conf.getBoolean(path(id, "active")) && conf.contains(path(id, "routines"))) {
-                Location rh = home(id);
-                if (rh != null) awayRoutines(id, rh);
-            }
-            Location hm0 = job.isEmpty() || Bukkit.getPlayer(id) != null || !flag(id, "watch", false) || !conf.getBoolean(path(id, "active"))
-                    || ms >= max || conf.getBoolean(path(id, "away.full"), false) ? null : home(id);
-            Location hm = hm0 != null && job.equals("place") ? placeNamed(id, conf.getString(path(id, "away.place"), "")) : hm0;   // that job is done at the saved place, not at home
-            if (hm != null && builder.sites.containsKey(id)) {                     // still building: that is finished first, then the job
-                awayWarn(id, "building", "finishes the " + builder.sites.get(id).name + " at " + builder.sites.get(id).where + " first, then starts the job");
-                continue;
-            }
-            if (hm0 != null && hm == null) awayWarn(id, "nofarm", "no place called " + conf.getString(path(id, "away.place"), "?") + " yet (remember <name> <x> <y> <z> [world])");
-            if (hm == null) {
-                if (awayHeld.containsKey(id)) {
-                    String did = awayDid(id);
-                    awayLog(id, "stopped (" + (Bukkit.getPlayer(id) != null ? "the owner is back" : ms >= max ? "the time is up" : conf.getBoolean(path(id, "away.full"), false) ? conf.getString(path(id, "away.why"), "bag and chests are full, no wood for a new chest") : "called off")
-                            + ") after " + ms / 60_000 + " min" + (did.isEmpty() ? ", nothing done" : ": " + did));
-                }
-                awayLet(id);
-                continue;
-            }
-            if (!awayHeld.containsKey(id)) {                              // keep home loaded (crops, furnaces)
-                Map<String, Integer> was0 = new HashMap<>();
-                for (String c0 : List.of("fish", "crops", "sown", "meal", "wool", "fed", "meat", "smelted", "xp", "mined", "explored", "maps", "chicks", "goldchicks", "mobs")) was0.put(c0, conf.getInt(path(id, "away." + c0), 0));
-                awaySeen.put(id, was0);
-                awayTold.keySet().removeIf(k0 -> k0.startsWith(id + ":warn:"));
-                awayLog(id, "starts to " + (job.equals("place") ? "work at " + conf.getString(path(id, "away.place"), "the place") + " (" : (job.equals("home") ? "work" : job) + " at home (") + hm.getWorld().getName() + " " + hm.getBlockX() + " " + hm.getBlockY() + " " + hm.getBlockZ() + "), " + ms / 60_000 + " min worked so far");
-                List<long[]> held = new ArrayList<>();
-                for (int cx = (hm.getBlockX() - HOME) >> 4; cx <= (hm.getBlockX() + HOME) >> 4; cx++) for (int cz = (hm.getBlockZ() - HOME) >> 4; cz <= (hm.getBlockZ() + HOME) >> 4; cz++) {
-                    long[] c = {cx, cz};
-                    hm.getWorld().addPluginChunkTicket((int) c[0], (int) c[1], plugin);
-                    held.add(c);
-                }
-                awayHeld.put(id, held);
-                awayWorld.put(id, hm.getWorld());
-            }
-            Block c = hm.getBlock();
-            int got = 0;
-            switch (job) {
-                case "fish" -> got = awayFish(id, hm);
-                case "farm" -> got = awayFarm(id, hm);
-                case "home" -> {                                          // a bit of everything, and the gates stay shut
-                    int field = awayFarm(id, hm);
-                    got = awayFish(id, hm) + field;
-                    int idle = field > 0 ? 0 : awayIdle.merge(id, 1, Integer::sum);
-                    if (field > 0) awayIdle.put(id, 0);
-                    if (idle >= 3) bump(id, "explored", explorer.awayExplore(id, hm, true));   // the field is done: out exploring
-                    if (ms % 60_000 == 0) {
-                        got += awayAnimals(id, hm);
-                        int out = awaySmelt(id, hm);
-                        bump(id, "smelted", out);
-                        got += out;
-                    }
-                    shutYard(yard(id, hm));
-                }
-                case "place" -> got = awayPlace(id, hm);
-                case "smelt" -> bump(id, "smelted", got = awaySmelt(id, hm));
-                case "mine" -> bump(id, "mined", got = explorer.awayMine(id, hm));
-                case "explore" -> bump(id, "explored", got = explorer.awayExplore(id, hm, false));
-                default -> { }
-            }
-            Inventory bag = bag(id);
-            int free = 0;
-            for (ItemStack it : bag.getStorageContents()) if (empty(it)) free++;
-            if (free < 6 && !job.equals("smelt") && myBarrel(id, hm.getWorld()) != null) {      // nearly full, and you have a magic barrel: all of it in your own store
-                int moved = storage.putMine(id, bag);
-                dirty.add(id);
-                if (moved > 0) awayLog(id, "put " + moved + " things in your own store in the magic barrel");
-            } else if (free < 6 && !job.equals("smelt")) {                // nearly full: into the chests at home
-                int moved = 0;
-                List<Inventory> to = stores(hm, HOME);
-                for (int i = 0; i < bag.getSize(); i++) {
-                    ItemStack it = bag.getItem(i);
-                    if (empty(it)) continue;
-                    int before = it.getAmount();
-                    for (int pass = 0; pass < 2 && it.getAmount() > 0; pass++)
-                        for (Inventory inv : to) {
-                            if (pass == 0 && !inv.contains(it.getType())) continue;
-                            Map<Integer, ItemStack> rest = inv.addItem(it.clone());
-                            it.setAmount(rest.isEmpty() ? 0 : rest.values().iterator().next().getAmount());
-                            if (it.getAmount() == 0) break;
-                        }
-                    moved += before - it.getAmount();
-                    bag.setItem(i, it.getAmount() > 0 ? it : null);
-                }
-                dirty.add(id);
-                if (moved == 0 && free == 0 && !moreRoom(id, hm)) conf.set(path(id, "away.full"), true);       // bag and chests full: it stops
-            }
-            awayMeet(id, hm);
-            if ((ms + 10_000) % 600_000 == 0) {                           // a line every ten minutes: what was done since the last one
-                Map<String, Integer> was = awaySeen.computeIfAbsent(id, k2 -> new HashMap<>());
-                List<String> did = new ArrayList<>();
-                for (String[] c2 : new String[][] {{"fish", "fish"}, {"crops", "crops"}, {"sown", "sown"}, {"meal", "bone meal used"}, {"wool", "sheep sheared"}, {"fed", "animals fed"}, {"chicks", "chicks hatched"}, {"mobs", "monsters killed"}, {"goldchicks", "golden chicks"},
-                        {"meat", "slaughtered"}, {"smelted", "smelted"}, {"xp", "experience for you"}, {"mined", "ore blocks"}, {"explored", "new chunks"}, {"maps", "treasure maps"}}) {
-                    int now2 = conf.getInt(path(id, "away." + c2[0]), 0), d = now2 - was.getOrDefault(c2[0], 0);
-                    was.put(c2[0], now2);
-                    if (d > 0) did.add(c2[1] + " " + d);
-                }
-                awayLog(id, "last 10 min (" + (job.equals("home") ? "work" : job) + "): " + (did.isEmpty() ? "nothing done" : String.join(", ", did)) + ". " + (ms + 10_000) / 60_000 + " min in all");
-            }
-            if (ms % 300_000 == 0 && ms > 0) tidy(id);
-            conf.set(path(id, "away.ms"), ms + 10_000);
-            changed = true;
-        }
-        if (changed && tick % 1200 == 0) { flushBags(); save(); }         // once a minute; shutdown() and pause save too
-    }
-
-    /** Done things out of the furnaces at home into the chests there; ores and raw food from the bag and the chests
-     *  into empty furnaces, and fuel the same way. Returns how many things came out. */
-    int awaySmelt(UUID id, Location hm) {
-        List<Inventory> from = new ArrayList<>(List.of(bag(id)));
-        List<Inventory> chests = stores(hm, HOME);
-        from.addAll(chests);
-        int took = 0;
-        for (FurnaceInventory f : furnaces(hm, HOME)) {
-            ItemStack done = f.getResult();
-            if (!empty(done)) {
-                int before = done.getAmount(), left = before;
-                for (Inventory inv : chests) {
-                    ItemStack rest = done.clone();
-                    rest.setAmount(left);
-                    Map<Integer, ItemStack> over = inv.addItem(rest);
-                    left = over.isEmpty() ? 0 : over.values().iterator().next().getAmount();
-                    if (left == 0) break;
-                }
-                done.setAmount(left);
-                f.setResult(left > 0 ? done : null);
-                took += before - left;
-            }
-            if (empty(f.getSmelting()))
-                load:
-                for (Inventory inv : from) for (int i = 0; i < inv.getSize(); i++) {
-                    ItemStack it = inv.getItem(i);
-                    if (empty(it) || !f.canSmelt(it)) continue;
-                    String n = it.getType().name();
-                    if (!(n.startsWith("RAW_") || n.endsWith("_ORE") || n.equals("ANCIENT_DEBRIS") || it.getType().isEdible())) continue;
-                    f.setSmelting(it.clone());
-                    inv.setItem(i, null);
-                    break load;
-                }
-            if (!empty(f.getSmelting()) && empty(f.getFuel()))
-                fuel:
-                for (Inventory inv : from) for (int i = 0; i < inv.getSize(); i++) {
-                    ItemStack it = inv.getItem(i);
-                    if (empty(it) || !FUELS.contains(it.getType())) continue;
-                    ItemStack one = it.clone();
-                    if (it.getType() != Material.LAVA_BUCKET) { one.setAmount(Math.min(it.getAmount(), 8)); it.setAmount(it.getAmount() - one.getAmount()); inv.setItem(i, it.getAmount() > 0 ? it : null); }
-                    else inv.setItem(i, null);
-                    f.setFuel(one);
-                    break fuel;
-                }
-            if (!empty(f.getSmelting()) && empty(f.getFuel())) awayWarn(id, "fuel", "a furnace at home has no fuel (coal, charcoal, blaze rods, a lava bucket or dried kelp blocks in a chest)");
-        }
-        dirty.add(id);
-        xp(id, (int) Math.round(took * 0.35));                            // about what a furnace gives per thing
-        return took;
-    }
-
-    /** What there is to tend within 100 blocks of home: looked up once every five minutes (a look through every
-     *  block there is too much to do every ten seconds). */
-    static final class Yard {
-        final List<Block> soil = new ArrayList<>(), doors = new ArrayList<>();
-        Block water;
-        long at;
-    }
-    final Map<UUID, Yard> yards = new HashMap<>();
-
-    Yard yard(UUID id, Location hm) {
-        Yard y = yards.get(id);
-        long now = System.currentTimeMillis();
-        if (y != null && now - y.at < 300_000) return y;
-        y = new Yard();
-        y.at = now;
-        World w = hm.getWorld();
-        int hx = hm.getBlockX(), hy = hm.getBlockY(), hz = hm.getBlockZ();
-        int lo = Math.max(w.getMinHeight(), hy - 16), hi = Math.min(w.getMaxHeight() - 2, hy + 16);
-        double best = Double.MAX_VALUE;
-        for (int cx = (hx - HOME) >> 4; cx <= (hx + HOME) >> 4; cx++) for (int cz = (hz - HOME) >> 4; cz <= (hz + HOME) >> 4; cz++) {
-            if (!w.isChunkGenerated(cx, cz)) continue;
-            org.bukkit.ChunkSnapshot snap = w.getChunkAt(cx, cz).getChunkSnapshot();
-            for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
-                int bx = cx * 16 + x, bz = cz * 16 + z;
-                if (Math.abs(bx - hx) > HOME || Math.abs(bz - hz) > HOME) continue;
-                for (int yy = lo; yy <= hi; yy++) {
-                    Material t = snap.getBlockType(x, yy, z);
-                    if (t.isAir() || t == Material.STONE || t == Material.DIRT || t == Material.GRASS_BLOCK || t == Material.DEEPSLATE) continue;
-                    if (t == Material.FARMLAND || t == Material.SOUL_SAND && snap.getBlockType(x, yy + 1, z) == Material.NETHER_WART) y.soil.add(w.getBlockAt(bx, yy, bz));
-                    else if (Tag.FENCE_GATES.isTagged(t) || Tag.DOORS.isTagged(t) && t != Material.IRON_DOOR) y.doors.add(w.getBlockAt(bx, yy, bz));
-                    else if (t == Material.WATER && snap.getBlockType(x, yy + 1, z).isAir()) {
-                        double d = (bx - hx) * (double) (bx - hx) + (bz - hz) * (double) (bz - hz);
-                        if (d < best) { best = d; y.water = w.getBlockAt(bx, yy, bz); }
-                    }
-                }
-            }
-        }
-        yards.put(id, y);
-        return y;
-    }
-
-    /** Shuts the open doors and gates of the yard that no player stands by. */
-    int shutYard(Yard y) {
-        int n = 0;
-        for (Block b : y.doors) {
-            if (!(b.getBlockData() instanceof org.bukkit.block.data.Openable o) || !o.isOpen()) continue;
-            Location at = b.getLocation().add(0.5, 0.5, 0.5);
-            if (!at.getNearbyPlayers(5).isEmpty()) continue;
-            o.setOpen(false);
-            b.setBlockData(o);
-            boolean door = Tag.DOORS.isTagged(b.getType());
-            b.getWorld().playSound(at, door ? Sound.BLOCK_WOODEN_DOOR_CLOSE : Sound.BLOCK_FENCE_GATE_CLOSE, 0.7f, 1f);
-            if (!door || !(o instanceof org.bukkit.block.data.Bisected half) || half.getHalf() == org.bukkit.block.data.Bisected.Half.BOTTOM) n++;
-        }
         return n;
     }
 
@@ -2338,70 +2077,6 @@ final class Helper implements Listener {
 
     void bump(UUID id, String k, int n) {
         if (n > 0) conf.set(path(id, "away." + k), conf.getInt(path(id, "away." + k), 0) + n);
-    }
-
-    int awayFish(UUID id, Location hm) {
-        Block b = yard(id, hm).water;
-        if (b == null || b.getType() != Material.WATER) { awayWarn(id, "water", "no open water within 100 blocks of home, so no fishing"); return 0; }
-        Collection<ItemStack> loot = fishLoot(b.getLocation());
-        awayNote(id, loot);
-        int n = addToBag(id, loot);
-        bump(id, "fish", n);
-        xp(id, 1 + ThreadLocalRandom.current().nextInt(6));
-        return n;
-    }
-
-    /** One bone meal from the bag or the chests; when there is none, a bone is ground into three. */
-    boolean boneMeal(UUID id, List<Inventory> from) {
-        if (count(from, m -> m == Material.BONE_MEAL) < 1) {
-            if (count(from, m -> m == Material.BONE) < 1) return false;
-            take(from, m -> m == Material.BONE, 1);
-            hand(id, null, new ItemStack(Material.BONE_MEAL, 3));
-        }
-        take(from, m -> m == Material.BONE_MEAL, 1);
-        dirty.add(id);
-        return true;
-    }
-
-    /** The fields within 100 blocks of home: ripe plants are harvested and set again, empty farmland is sown with what
-     *  there is in the bag and the chests, and what is still growing gets bone meal (made from bones when needed). */
-    int awayFarm(UUID id, Location hm) {
-        List<Inventory> from = new ArrayList<>(List.of(bag(id)));
-        from.addAll(stores(hm, HOME));
-        int n = 0, sown = 0, meal = 0;
-        for (Block soil : yard(id, hm).soil) {
-            if (n >= 24 && sown >= 16 && meal >= 8) break;
-            Block b = soil.getRelative(BlockFace.UP);
-            Material t = b.getType();
-            if (SEEDS.containsKey(t) && b.getBlockData() instanceof Ageable a) {
-                if (a.getAge() >= a.getMaximumAge()) {
-                    if (n >= 24) continue;
-                    Collection<ItemStack> crop = harvest(b);
-                    awayNote(id, crop);
-                    addToBag(id, crop);
-                    n++;
-                } else if (meal < 8 && t != Material.NETHER_WART) {
-                    if (!boneMeal(id, from)) { awayWarn(id, "meal", "out of bone meal and bones, the fields grow at their own speed now"); meal = 8; continue; }
-                    b.applyBoneMeal(BlockFace.UP);
-                    meal++;
-                }
-            } else if (soil.getType() == Material.FARMLAND && sown < 16 && t.isAir()) {
-                for (Map.Entry<Material, Material> e : SEEDS.entrySet()) {
-                    Material seed = e.getValue();
-                    if (e.getKey() == Material.NETHER_WART || count(from, m -> m == seed) < 1) continue;
-                    take(from, m -> m == seed, 1);
-                    b.setType(e.getKey());
-                    dirty.add(id);
-                    sown++;
-                    break;
-                }
-                if (b.getType().isAir()) awayWarn(id, "seed", "there is empty farmland and nothing to sow in the bag or the chests");
-            }
-        }
-        bump(id, "crops", n);
-        bump(id, "sown", sown);
-        bump(id, "meal", meal);
-        return n + sown;
     }
 
     static boolean natural(Material m) {
@@ -2422,26 +2097,6 @@ final class Helper implements Listener {
 
     // --- Buildings in progress survive a restart: saved on shutdown, taken up again five seconds after the start ---
 
-    /** Work at a saved place: it looks at what is there. Farmland within 32 blocks: the fields are tended as at home.
-     *  Else a spawner or dark, roofed floors: the mob farm is run. Else open water within 32 blocks: it fishes. */
-    int awayPlace(UUID id, Location at) {
-        Yard y = yard(id, at);
-        String name = conf.getString(path(id, "away.place"), "the place"), see = null;
-        boolean fields = false;
-        for (Block b : y.soil) if (Math.abs(b.getX() - at.getBlockX()) <= 32 && Math.abs(b.getZ() - at.getBlockZ()) <= 32) { fields = true; break; }
-        int got = 0;
-        if (farms(id).contains(slug(name))) { see = "my mob farm"; got = Math.max(0, awayMobs(id, at, true)); }
-        else if (fields) { see = "fields"; got = awayFarm(id, at); }
-        else if ((got = awayMobs(id, at, false)) >= 0) see = "a mob farm";
-        else {
-            got = 0;
-            if (y.water != null && Math.abs(y.water.getX() - at.getBlockX()) <= 32 && Math.abs(y.water.getZ() - at.getBlockZ()) <= 32) { see = "water to fish in"; got = awayFish(id, at); }
-        }
-        if (awayTold.putIfAbsent(id + ":warn:see", System.currentTimeMillis()) == null)
-            awayLog(id, see == null ? "NOTE: I see nothing to do at " + name + ": no fields, no mob farm and no water" : "at " + name + " I see " + see + ", so that is my job here");
-        return got;
-    }
-
     /** What kind of loot something is: each kind gets chests of its own at the mob farm. */
     static String lootKind(ItemStack it) {
         Material m = it.getType();
@@ -2455,88 +2110,6 @@ final class Helper implements Listener {
             case ENDER_PEARL, SLIME_BALL, BLAZE_ROD, MAGMA_CREAM, GOLD_NUGGET, GOLD_INGOT, PHANTOM_MEMBRANE -> "rare";
             default -> m.name().startsWith("MUSIC_DISC") ? "creeper" : "other";
         };
-    }
-
-    /** True when a hopper empties into this chest: it is where the farm delivers, not a place to keep things. */
-    static boolean fed(Block chest) {
-        for (BlockFace f : new BlockFace[] {BlockFace.UP, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
-            Block n = chest.getRelative(f);
-            if (n.getBlockData() instanceof org.bukkit.block.data.type.Hopper hp && n.getRelative(hp.getFacing()).equals(chest)) return true;
-        }
-        return false;
-    }
-
-    /** Once a minute at the mob farm: what the hoppers have delivered (and the loot in the bag) goes into the other
-     *  chests within 16 blocks, each kind of loot in chests of its own; when there is no room, a new chest is made
-     *  (eight planks or two logs) and set down next to them. Returns how many things were moved. */
-    int sortFarm(UUID id, Location at) {
-        List<Inventory> inbox = new ArrayList<>(), keep = new ArrayList<>();
-        for (Inventory inv : stores(at, 16)) {
-            boolean in = false;
-            if (inv.getHolder() instanceof org.bukkit.block.DoubleChest dc) {
-                if (dc.getLeftSide() instanceof org.bukkit.block.Chest a && fed(a.getBlock())) in = true;
-                if (dc.getRightSide() instanceof org.bukkit.block.Chest b && fed(b.getBlock())) in = true;
-            } else if (inv.getLocation() != null) in = fed(inv.getLocation().getBlock());
-            (in ? inbox : keep).add(inv);
-        }
-        List<Inventory> sources = new ArrayList<>(inbox);
-        Inventory bag = bag(id);
-        sources.add(bag);
-        int moved = 0;
-        for (Inventory src : sources) for (int i = 0; i < src.getSize(); i++) {
-            ItemStack it = src.getItem(i);
-            if (empty(it)) continue;
-            String kind = lootKind(it);
-            if (src == bag && kind.equals("other")) continue;                // its own things stay in the bag
-            int before = it.getAmount();
-            ItemStack rest = it.clone();
-            for (int pass = 0; pass < 3 && rest != null; pass++) {
-                if (pass == 2) { Inventory fresh = farmChest(id, at, keep, inbox); if (fresh == null) break; keep.add(fresh); }
-                for (Inventory to : keep) {
-                    boolean same = false, bare = true;
-                    for (ItemStack c : to.getContents()) if (!empty(c)) { bare = false; if (lootKind(c).equals(kind)) { same = true; break; } }
-                    if (pass == 0 ? !same : !bare) continue;
-                    Map<Integer, ItemStack> left = to.addItem(rest);
-                    rest = left.isEmpty() ? null : left.values().iterator().next();
-                    if (rest == null) break;
-                }
-            }
-            int gone = before - (rest == null ? 0 : rest.getAmount());
-            if (gone > 0) { src.setItem(i, rest); moved += gone; if (src == bag) dirty.add(id); }
-            if (rest != null) { awayWarn(id, "farmfull", "the chests at the mob farm are full and I have no wood for a new one (eight planks or two logs in a chest there)"); bump(id, "sorted", moved); return moved; }
-        }
-        bump(id, "sorted", moved);
-        return moved;
-    }
-
-    /** A new chest by the storage chests of the mob farm. Null when there is no wood or no free spot. */
-    Inventory farmChest(UUID id, Location at, List<Inventory> keep, List<Inventory> inbox) {
-        List<Inventory> from = new ArrayList<>(List.of(bag(id)));
-        from.addAll(keep);
-        from.addAll(inbox);
-        boolean planks = count(from, Tag.PLANKS::isTagged) >= 8;
-        if (!planks && count(from, Tag.LOGS::isTagged) < 2) return null;
-        Block spot = null;
-        List<Inventory> by = new ArrayList<>(keep);
-        by.addAll(inbox);
-        find:
-        for (Inventory inv : by) {
-            if (inv.getLocation() == null) continue;
-            for (int up = 0; up <= 1; up++) for (BlockFace f : SIDES) {
-                Block b = inv.getLocation().getBlock().getRelative(f).getRelative(0, up, 0);
-                if (b.getType().isAir() && b.getRelative(BlockFace.UP).getType().isAir() && (b.getRelative(BlockFace.DOWN).getType().isSolid() || up == 1 && b.getRelative(BlockFace.DOWN).getType() == Material.CHEST)
-                        && !fed(b) && b.getLocation().getNearbyPlayers(1.5).isEmpty()) { spot = b; break find; }
-            }
-        }
-        if (spot == null) return null;
-        if (planks) take(from, Tag.PLANKS::isTagged, 8); else take(from, Tag.LOGS::isTagged, 2);
-        dirty.add(id);
-        spot.setType(Material.CHEST);
-        spot.getWorld().playSound(spot.getLocation(), Sound.BLOCK_WOOD_PLACE, 0.8f, 1f);
-        awayLog(id, "made a new chest at the mob farm at " + spot.getX() + " " + spot.getY() + " " + spot.getZ());
-        List<String> finds = conf.getStringList(path(id, "away.finds"));
-        if (finds.size() < 30) { finds.add("a new chest I made at the mob farm at " + spot.getX() + " " + spot.getY() + " " + spot.getZ()); conf.set(path(id, "away.finds"), finds); }
-        return spot.getState() instanceof org.bukkit.block.Chest c ? c.getInventory() : null;
     }
 
     /** The saved places that are mob farms. */
@@ -2587,88 +2160,12 @@ final class Helper implements Listener {
         h.farmSort = System.currentTimeMillis() - 50_000;
         h.stance = Stance.GUARD;
         h.anchor = post;
-        mobYards.remove(id);
+        awayWork.mobYards.remove(id);
         if (h.w.getWorld() != post.getWorld() || h.w.getLocation().distanceSquared(post) > 2.25) h.w.teleport(post);
         say(p, (made ? "This post is mob farm " + name + " now. " : "I run mob farm " + name + ". ") + "I stay outside, strike what I can reach with my sword and sort what lands in the chests every minute. I keep at it when you log out. Say stop when I should come with you.");
     }
 
-    static final class MobYard { final List<Block> floors = new ArrayList<>(); EntityType kind; long at; int rounds; }
-    final Map<UUID, MobYard> mobYards = new HashMap<>();
     static final EntityType[] MOBS = {EntityType.ZOMBIE, EntityType.ZOMBIE, EntityType.SKELETON, EntityType.SKELETON, EntityType.CREEPER, EntityType.SPIDER};
-
-    /** The mob farm at the saved place "mobfarm". No monsters come while nobody is logged in, so the helper calls
-     *  them itself: three every ten seconds on the dark, roofed floors within 24 blocks (from the level of the place
-     *  and 48 blocks up), the kind of a spawner when there is one within 24 blocks. The farm does the rest; what gets
-     *  within 8 blocks of the place is killed, the drops go in the bag and the experience to the owner. */
-    int awayMobs(UUID id, Location at, boolean sure) {
-        World w = at.getWorld();
-        MobYard y = mobYards.get(id);
-        long now = System.currentTimeMillis();
-        if (y == null || now - y.at > 300_000) {
-            y = new MobYard();
-            y.at = now;
-            int hx = at.getBlockX(), hy = at.getBlockY(), hz = at.getBlockZ();
-            int lo = Math.max(w.getMinHeight() + 1, hy - 1), hi = Math.min(w.getMaxHeight() - 3, hy + 48);
-            for (int cx = (hx - 24) >> 4; cx <= (hx + 24) >> 4; cx++) for (int cz = (hz - 24) >> 4; cz <= (hz + 24) >> 4; cz++) {
-                if (!w.isChunkGenerated(cx, cz)) continue;
-                org.bukkit.Chunk ch = w.getChunkAt(cx, cz);
-                for (org.bukkit.block.BlockState st : ch.getTileEntities()) if (st instanceof org.bukkit.block.CreatureSpawner sp && sp.getSpawnedType() != null
-                        && Math.abs(st.getX() - hx) <= 24 && Math.abs(st.getZ() - hz) <= 24) y.kind = sp.getSpawnedType();
-                org.bukkit.ChunkSnapshot snap = ch.getChunkSnapshot();
-                for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
-                    int bx = cx * 16 + x, bz = cz * 16 + z;
-                    if (Math.abs(bx - hx) > 24 || Math.abs(bz - hz) > 24 || Math.abs(bx - hx) <= 8 && Math.abs(bz - hz) <= 8) continue;
-                    for (int yy = lo; yy <= hi; yy++)
-                        if (snap.getBlockType(x, yy, z).isAir() && snap.getBlockType(x, yy + 1, z).isAir() && snap.getBlockType(x, yy - 1, z).isOccluding()
-                                && snap.getBlockEmittedLight(x, yy, z) == 0 && snap.getBlockSkyLight(x, yy, z) == 0) y.floors.add(w.getBlockAt(bx, yy, bz));
-                }
-            }
-            mobYards.put(id, y);
-        }
-        if (!sure && y.kind == null && y.floors.size() < 64) return -1;              // no spawner and no dark floors to speak of: not a mob farm
-        int got = 0, alive = 0, killed = 0;
-        ThreadLocalRandom r = ThreadLocalRandom.current();
-        List<org.bukkit.entity.Monster> prey = new ArrayList<>();
-        for (Entity e : w.getNearbyEntities(at, 32, 56, 32)) {
-            if (e instanceof Item item && item.getTicksLived() > 20 && Math.abs(e.getLocation().getX() - at.getX()) <= 8 && Math.abs(e.getLocation().getZ() - at.getZ()) <= 8 && Math.abs(e.getLocation().getY() - at.getY()) <= 6) {
-                List<ItemStack> one = List.of(item.getItemStack());
-                if (addToBag(id, one) == item.getItemStack().getAmount()) { awayNote(id, one); item.remove(); got++; }
-                continue;
-            }
-            if (!(e instanceof org.bukkit.entity.Monster m) || m.customName() != null) continue;
-            Location l = m.getLocation();
-            if (Math.abs(l.getX() - at.getX()) <= 8 && Math.abs(l.getZ() - at.getZ()) <= 8 && Math.abs(l.getY() - at.getY()) <= 6) {
-                if (prey.size() < 12) prey.add(m);
-            } else if (m.getScoreboardTags().contains("helper_farm") && m.getTicksLived() > 6000) m.remove();   // never got to the killing room
-            else alive++;
-        }
-        if (!prey.isEmpty()) {                                               // the sword: a blow every 0.6 s for the next nine seconds, until they are dead
-            int[] blows = {0};
-            Bukkit.getScheduler().runTaskTimer(plugin, task -> {
-                prey.removeIf(m -> m.isDead() || !m.isValid());
-                if (blows[0]++ >= 15 || prey.isEmpty() || Bukkit.getPlayer(id) != null || paused()) { task.cancel(); return; }
-                org.bukkit.entity.Monster m = prey.get(0);
-                m.addScoreboardTag("helper_farm");
-                H hh = helpers.get(id);
-                if (hh != null && !hh.merged && hh.w != null && hh.w.isValid() && hh.w.getWorld() == m.getWorld()) {
-                    m.damage(10.0, hh.w);                                 // onKill counts it and gives the experience
-                } else {
-                    m.damage(10.0);
-                    if (m.isDead()) { xp(id, 5); bump(id, "mobs", 1); }
-                }
-                m.getWorld().playSound(m.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.7f, 1f);
-            }, 4L, 12L);
-        }
-        if (y.rounds++ % 6 == 0) got += sortFarm(id, at);
-        if (y.floors.isEmpty()) awayWarn(id, "nofloor", "no dark, roofed floors within 24 blocks of the mob farm (from its level and up), so I cannot call any monsters there");
-        else if (alive < 40) for (int i = 0; i < 3; i++) {
-            Block b = y.floors.get(r.nextInt(y.floors.size()));
-            if (!b.getType().isAir() || !b.getRelative(BlockFace.DOWN).getType().isOccluding()) continue;
-            Entity mob = w.spawnEntity(b.getLocation().add(0.5, 0, 0.5), y.kind != null ? y.kind : MOBS[r.nextInt(MOBS.length)]);
-            mob.addScoreboardTag("helper_farm");
-        }
-        return got + prey.size();
-    }
 
     /** A golden chicken it has not seen before: its owner hears of it (at once, or in the finds when they are away). */
     void goldSeen(UUID id, org.bukkit.entity.Chicken c, String how) {
@@ -2689,201 +2186,6 @@ final class Helper implements Listener {
 
     static final Map<EntityType, Material> MEAT = Map.of(EntityType.COW, Material.BEEF, EntityType.PIG, Material.PORKCHOP, EntityType.SHEEP, Material.MUTTON, EntityType.CHICKEN, Material.CHICKEN);
     static final Material[] FODDER = {Material.WHEAT, Material.CARROT, Material.POTATO, Material.BEETROOT, Material.WHEAT_SEEDS, Material.BEETROOT_SEEDS, Material.MELON_SEEDS, Material.PUMPKIN_SEEDS};
-
-    /** Once a minute for the cows, pigs, sheep and chickens within 100 blocks of home: sheep are shorn, a herd under
-     *  twelve gets fed two and two (so there are young), a herd over twelve grown ones loses up to two (meat, leather
-     *  and feathers into the bag; never the young, the named or the leashed), and what lies on the ground is picked up. */
-    int awayAnimals(UUID id, Location hm) {
-        List<Inventory> from = new ArrayList<>(List.of(bag(id)));
-        from.addAll(stores(hm, HOME));
-        Map<EntityType, List<Animals>> herds = new HashMap<>();
-        int got = 0;
-        ThreadLocalRandom r = ThreadLocalRandom.current();
-        GoldenChicken gc = GoldenChicken.instance;
-        Collection<Entity> near = hm.getWorld().getNearbyEntities(hm, HOME, 16, HOME);
-        List<org.bukkit.entity.Chicken> gold = new ArrayList<>();
-        int hens = 0;
-        for (Entity e : near) if (e instanceof org.bukkit.entity.Chicken c) {
-            hens++;
-            if (gc != null && gc.isGolden(c)) { gold.add(c); goldSeen(id, c, null); }
-        }
-        for (Entity e : near) {
-            if (e instanceof Item egg && egg.getTicksLived() > 100 && hens < 300 && (egg.getItemStack().getType() == Material.EGG
-                    || egg.getItemStack().getType() == Material.BLUE_EGG || egg.getItemStack().getType() == Material.BROWN_EGG)) {
-                boolean golden = gc != null && gc.isEgg(egg.getItemStack());
-                if (!golden || gold.size() < 12) {                           // cracked where it lies: one in eight hatches, now and then four
-                    int chicks = 0;
-                    for (int i = 0; i < egg.getItemStack().getAmount(); i++) if (r.nextInt(8) == 0) chicks += r.nextInt(32) == 0 ? 4 : 1;
-                    Location at = egg.getLocation();
-                    for (int i = 0; i < chicks; i++) {
-                        org.bukkit.entity.Chicken c = at.getWorld().spawn(at, org.bukkit.entity.Chicken.class);
-                        c.setBaby();
-                        if (golden) { gc.makeGolden(c); gold.add(c); goldSeen(id, c, "hatched"); }
-                    }
-                    at.getWorld().playSound(at, Sound.ENTITY_EGG_THROW, 0.6f, 1f);
-                    bump(id, "eggs", egg.getItemStack().getAmount());
-                    bump(id, golden ? "goldchicks" : "chicks", chicks);
-                    hens += chicks;
-                    got++;
-                    egg.remove();
-                    continue;
-                }
-            }
-            if (e instanceof Item item && item.getTicksLived() > 100) {      // what the animals dropped (golden eggs too, once there are twelve golden chickens)
-                List<ItemStack> one = List.of(item.getItemStack());
-                if (addToBag(id, one) == item.getItemStack().getAmount()) { awayNote(id, one); item.remove(); got++; }
-                continue;
-            }
-            if (e instanceof Animals a && MEAT.containsKey(e.getType()) && a.customName() == null && !a.isLeashed()) herds.computeIfAbsent(e.getType(), k -> new ArrayList<>()).add(a);
-        }
-        if (gold.size() < 30) {                                              // golden chickens are never slaughtered, and two golden parents give a golden chick
-            List<org.bukkit.entity.Chicken> ready = new ArrayList<>();
-            for (org.bukkit.entity.Chicken c : gold) if (c.isAdult() && c.canBreed() && !c.isLoveMode() && ready.size() < 2) ready.add(c);
-            if (ready.size() == 2) {
-                Material food = null;
-                for (Material f : FODDER) if (ready.get(0).isBreedItem(f) && count(from, m -> m == f) >= 2) { food = f; break; }
-                if (food == null) awayWarn(id, "goldfood", "no seeds for the golden chickens (wheat, beetroot, melon or pumpkin seeds in a chest and I will breed them)");
-                else {
-                    Material fd = food;
-                    take(from, m -> m == fd, 2);
-                    dirty.add(id);
-                    for (org.bukkit.entity.Chicken c : ready) c.setLoveModeTicks(600);
-                    bump(id, "fed", 2);
-                    got += 2;
-                }
-            }
-        }
-        for (Map.Entry<EntityType, List<Animals>> herd : herds.entrySet()) {
-            List<Animals> grown = new ArrayList<>();
-            for (Animals a : herd.getValue()) if (a.isAdult()) grown.add(a);
-            for (Animals a : grown) if (a instanceof Sheep sh && !sh.isSheared()) {
-                sh.setSheared(true);
-                org.bukkit.DyeColor col = sh.getColor();
-                Material wool = Material.matchMaterial((col == null ? "WHITE" : col.name()) + "_WOOL");
-                List<ItemStack> w = List.of(new ItemStack(wool == null ? Material.WHITE_WOOL : wool, 1 + r.nextInt(3)));
-                awayNote(id, w);
-                addToBag(id, w);
-                bump(id, "wool", 1);
-                got++;
-            }
-            if (grown.size() > 12) {
-                for (int i = 0; i < Math.min(2, grown.size() - 12); i++) {
-                    Animals a = grown.get(grown.size() - 1 - i);
-                    List<ItemStack> meat = new ArrayList<>(List.of(new ItemStack(MEAT.get(herd.getKey()), 2 + r.nextInt(3))));
-                    if (a instanceof Cow) meat.add(new ItemStack(Material.LEATHER, 1 + r.nextInt(2)));
-                    if (herd.getKey() == EntityType.CHICKEN) meat.add(new ItemStack(Material.FEATHER, 1 + r.nextInt(2)));
-                    awayNote(id, meat);
-                    addToBag(id, meat);
-                    a.remove();
-                    xp(id, 1 + r.nextInt(3));
-                    bump(id, "meat", 1);
-                    got++;
-                }
-                int gone = Math.min(2, grown.size() - 12);
-                awayLog(id, "slaughtered " + gone + " " + herd.getKey().getKey().getKey() + ", " + (grown.size() - gone) + " grown left");
-            } else if (herd.getValue().size() < 12) {
-                List<Animals> ready = new ArrayList<>();
-                for (Animals a : grown) if (a.canBreed() && !a.isLoveMode() && ready.size() < 2) ready.add(a);
-                if (ready.size() < 2) continue;
-                Material food = null;
-                for (Material f : FODDER) if (ready.get(0).isBreedItem(f) && count(from, m -> m == f) >= 2) { food = f; break; }
-                if (food == null) continue;
-                Material fd = food;
-                take(from, m -> m == fd, 2);
-                dirty.add(id);
-                for (Animals a : ready) a.setLoveModeTicks(600);
-                xp(id, 1 + r.nextInt(7));
-                bump(id, "fed", 2);
-                got += 2;
-            }
-        }
-        return got;
-    }
-
-    /** Bag and chests full: a new chest from eight planks (or two logs) out of the chests, set down next to one of
-     *  the chests at home. False when there is no wood or no free spot. */
-    boolean moreRoom(UUID id, Location hm) {
-        List<Inventory> from = new ArrayList<>(List.of(bag(id)));
-        List<Inventory> chests = stores(hm, HOME);
-        from.addAll(chests);
-        boolean planks = count(from, Tag.PLANKS::isTagged) >= 8;
-        if (!planks && count(from, Tag.LOGS::isTagged) < 2) return false;
-        Block spot = null;
-        find:
-        for (Inventory inv : chests) {
-            Location l = inv.getLocation();
-            if (l == null) continue;
-            for (BlockFace f : SIDES) {
-                Block b = l.getBlock().getRelative(f);
-                if (b.getType().isAir() && b.getRelative(BlockFace.UP).getType().isAir() && b.getRelative(BlockFace.DOWN).getType().isSolid()) { spot = b; break find; }
-            }
-        }
-        if (spot == null) for (int r = 1; r <= 4 && spot == null; r++) for (int x = -r; x <= r && spot == null; x++) for (int z = -r; z <= r && spot == null; z++) {
-            Block b = hm.getBlock().getRelative(x, 0, z);
-            if (b.getType().isAir() && b.getRelative(BlockFace.UP).getType().isAir() && b.getRelative(BlockFace.DOWN).getType().isSolid() && b.getLocation().getNearbyPlayers(1.5).isEmpty()) spot = b;
-        }
-        if (spot == null) return false;
-        if (planks) take(from, Tag.PLANKS::isTagged, 8); else take(from, Tag.LOGS::isTagged, 2);
-        dirty.add(id);
-        spot.setType(Material.CHEST);
-        spot.getWorld().playSound(spot.getLocation(), Sound.BLOCK_WOOD_PLACE, 0.8f, 1f);
-        awayLog(id, "everything was full, so it made a new chest at " + spot.getX() + " " + spot.getY() + " " + spot.getZ());
-        List<String> finds = conf.getStringList(path(id, "away.finds"));
-        if (finds.size() < 30) { finds.add("a new chest I made at " + spot.getX() + " " + spot.getY() + " " + spot.getZ()); conf.set(path(id, "away.finds"), finds); }
-        return true;
-    }
-
-    String awayDid(UUID id) {
-        int fish = conf.getInt(path(id, "away.fish"), 0), crops = conf.getInt(path(id, "away.crops"), 0), smelted = conf.getInt(path(id, "away.smelted"), 0);
-        List<String> did = new ArrayList<>();
-        if (fish > 0) did.add("caught " + fish + (fish == 1 ? " thing" : " things") + " fishing");
-        if (crops > 0) did.add("harvested " + crops + (crops == 1 ? " plant" : " plants"));
-        if (smelted > 0) did.add("took " + smelted + (smelted == 1 ? " thing" : " things") + " out of the furnaces");
-        int sown = conf.getInt(path(id, "away.sown"), 0), meal = conf.getInt(path(id, "away.meal"), 0), fed = conf.getInt(path(id, "away.fed"), 0),
-                meat = conf.getInt(path(id, "away.meat"), 0), wool = conf.getInt(path(id, "away.wool"), 0);
-        if (sown > 0) did.add("sowed " + sown + (sown == 1 ? " plant" : " plants"));
-        if (meal > 0) did.add("used " + meal + " bone meal");
-        if (fed > 0) did.add("fed " + fed + " animals");
-        if (wool > 0) did.add("sheared " + wool + (wool == 1 ? " sheep" : " sheep"));
-        if (meat > 0) did.add("slaughtered " + meat + (meat == 1 ? " animal" : " animals"));
-        int mined = conf.getInt(path(id, "away.mined"), 0), explored = conf.getInt(path(id, "away.explored"), 0);
-        if (mined > 0) did.add("dug out " + mined + " blocks of " + conf.getString(path(id, "away.target"), "ore").toLowerCase(Locale.ROOT).replace('_', ' '));
-        int eggs = conf.getInt(path(id, "away.eggs"), 0), chicks = conf.getInt(path(id, "away.chicks"), 0), goldchicks = conf.getInt(path(id, "away.goldchicks"), 0);
-        if (eggs > 0) did.add("cracked " + eggs + (eggs == 1 ? " egg" : " eggs") + " (" + chicks + (chicks == 1 ? " chick" : " chicks") + ")");
-        if (goldchicks > 0) did.add("hatched " + goldchicks + " golden " + (goldchicks == 1 ? "chick" : "chicks"));
-        int sorted = conf.getInt(path(id, "away.sorted"), 0);
-        if (sorted > 0) did.add("sorted " + sorted + " things into the chests at the mob farm");
-        int mobs = conf.getInt(path(id, "away.mobs"), 0);
-        if (mobs > 0) did.add("killed " + mobs + (mobs == 1 ? " monster" : " monsters") + " at the mob farm");
-        int earned = conf.getInt(path(id, "away.xp"), 0);
-        if (earned > 0) did.add("earned you " + earned + " experience points");
-        if (explored > 0) did.add("explored " + explored * 32 * 32 / 1000 + " thousand square blocks of land");
-        return String.join(", ", did);
-    }
-
-    /** "sum": everything done since the job began (the counters start again each time the owner logs out). */
-    String sum(UUID id) {
-        String did = awayDid(id), job = conf.getString(path(id, "away.job"), "");
-        long min = conf.getLong(path(id, "away.ms"), 0) / 60_000;
-        List<String> finds = conf.getStringList(path(id, "away.finds"));
-        if (did.isEmpty() && min == 0) {
-            String last = conf.getString(path(id, "away.last"));
-            return last == null ? "I have not done any work on my own yet." : "Last time you were away: " + last;
-        }
-        boolean full = conf.getBoolean(path(id, "away.full"), false);
-        return "Since I began (" + min + " min of work" + (job.isEmpty() ? "" : ", job: " + (job.equals("home") ? "work at home" : job)) + "): " + (did.isEmpty() ? "nothing yet" : did) + "."
-                + (finds.isEmpty() ? "" : " Special finds: " + String.join("; ", finds) + ".")
-                + (!full ? "" : " I have stopped: " + conf.getString(path(id, "away.why"), "bag and chests are full") + ".");
-    }
-
-    /** "Did you find anything special?": the enchanted things, treasure, buildings and new chests of this time away,
-     *  or of the last one when the owner is back. */
-    String finds(UUID id) {
-        List<String> now = conf.getStringList(path(id, "away.finds")), last = conf.getStringList(path(id, "away.lastfinds"));
-        if (!now.isEmpty()) return "Yes! So far: " + String.join("; ", now) + ".";
-        if (conf.getLong(path(id, "away.ms"), 0) > 0) return "Nothing special yet this time. I will tell you when I do.";
-        return last.isEmpty() ? "No, nothing special last time." : "Yes! Last time you were away: " + String.join("; ", last) + ".";
-    }
 
     static final String[][] LOOKS = {
         {"ninja", "Silent as a shadow. You will not hear me coming.", "Black belt on. Nobody sneaks up on you now."},
@@ -3067,35 +2369,6 @@ final class Helper implements Listener {
         } + ".";
     }
 
-    void awayReport(Player p) {
-        UUID id = p.getUniqueId();
-        if (conf.getBoolean(path(id, "away.auto"))) {                      // it ran a mob farm on its own: the job from before counts again
-            conf.set(path(id, "away.job"), conf.getString(path(id, "away.prevjob")));
-            conf.set(path(id, "away.place"), conf.getString(path(id, "away.prevplace")));
-            if (conf.getBoolean(path(id, "away.autowatch"))) conf.set(path(id, "watch"), null);
-            for (String k : List.of("auto", "autowatch", "prevjob", "prevplace")) conf.set(path(id, "away." + k), null);
-        }
-        awayLet(id);
-        String did = awayDid(id);
-        int saved = conf.getInt(path(id, "xp"), 0);
-        if (saved > 0) { p.giveExp(saved); conf.set(path(id, "xp"), null); save(); p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.2f); }
-        long min = conf.getLong(path(id, "away.ms"), 0) / 60_000;
-        boolean full = conf.getBoolean(path(id, "away.full"), false);
-        if (!did.isEmpty()) conf.set(path(id, "away.lastfinds"), conf.getStringList(path(id, "away.finds")).isEmpty() ? null : conf.getStringList(path(id, "away.finds")));
-        if (!did.isEmpty()) conf.set(path(id, "away.last"), did + " (" + min + " min of work)" + (conf.getStringList(path(id, "away.finds")).isEmpty() ? "" : ". Special finds: " + String.join("; ", conf.getStringList(path(id, "away.finds")))) + ".");
-        String why = conf.getString(path(id, "away.why"));
-        List<String> finds = conf.getStringList(path(id, "away.finds"));
-        for (String k : List.of("ms", "fish", "crops", "sown", "meal", "fed", "meat", "wool", "smelted", "mined", "explored", "xp", "eggs", "chicks", "goldchicks", "mobs", "sorted", "full", "why", "finds")) conf.set(path(id, "away." + k), null);
-        if (did.isEmpty() && !full) return;
-        save();
-        String stopped = !full ? "" : why != null ? " I stopped because " + why + "." : " My bag and the chests are full and I had no wood for a new chest, so I had to stop.";
-        conf.set(path(id, "away.report"), (did.isEmpty() ? "" : "While you were away I " + did + " (" + min + " minutes of work). It is in the chests at home and in my bag."
-                + (finds.isEmpty() ? "" : " The best of it: " + String.join("; ", finds) + ".")) + stopped);
-        save();
-        say(p, "Welcome back, " + nick(p) + "!" + (did.isEmpty() ? "" : " " + min + " min of work" + (saved > 0 ? ", " + saved + " experience for you" : "") + (finds.isEmpty() ? "" : ", " + finds.size() + (finds.size() == 1 ? " special find" : " special finds")) + ".")
-                + (full ? " I had to stop early." : "") + " Say log for the details.");
-    }
-
     /** The orders that only change what the helper is like or remembers: these work with the owner away, straight
      *  into helpers.yml. {@code raw} keeps the capitals (for names). False when it is not one of them. */
     boolean settings(UUID id, String raw, String t, Consumer<String> tell) {
@@ -3171,7 +2444,7 @@ final class Helper implements Listener {
                 Location l = new Location(w, Integer.parseInt(args[at]) + 0.5, Integer.parseInt(args[at + 1]), Integer.parseInt(args[at + 2]) + 0.5);
                 String k = home ? "home" : "places." + slug(args[1]);
                 conf.set(path(id, k), spot(l));
-                if (home) { awayLet(id); awayOre.remove(id); awayScan.remove(id); yards.remove(id); }
+                if (home) { awayWork.awayLet(id); awayOre.remove(id); awayScan.remove(id); awayWork.yards.remove(id); }
                 tell.accept((home ? "Home" : "The place " + slug(args[1]).replace('_', ' ')) + " is now " + w.getName() + " " + l.getBlockX() + " " + l.getBlockY() + " " + l.getBlockZ() + ".");
             }
             case "places" -> {
@@ -3191,8 +2464,8 @@ final class Helper implements Listener {
                 conf.set(path(id, "places." + k), null);
                 tell.accept(had ? "Forgotten: " + rest + "." : "I don't know a place called " + rest + ".");
             }
-            case "sum" -> { tell.accept(sum(id)); return true; }
-            case "finds" -> { tell.accept(finds(id)); return true; }
+            case "sum" -> { tell.accept(awayWork.sum(id)); return true; }
+            case "finds" -> { tell.accept(awayWork.finds(id)); return true; }
             case "bag" -> {
                 Map<String, Integer> in = new java.util.TreeMap<>();
                 for (ItemStack it : bag(id).getContents()) if (!empty(it)) in.merge(word(it.getType()), it.getAmount(), Integer::sum);
@@ -3225,7 +2498,7 @@ final class Helper implements Listener {
                     tell.accept("Okay: " + (every ? "every " + args[2] + " minutes" : "every " + a1) + " I will: " + orders + ".");
                 }
             }
-            case "dismiss" -> { conf.set(path(id, "active"), false); despawn(id, false); awayLet(id); tell.accept("I went home. Nothing happens until I am called again (summon)."); }
+            case "dismiss" -> { conf.set(path(id, "active"), false); despawn(id, false); awayWork.awayLet(id); tell.accept("I went home. Nothing happens until I am called again (summon)."); }
             case "summon" -> { conf.set(path(id, "active"), true); tell.accept("I am back on duty" + (flag(id, "watch", false) ? "." : ", but with no job for when you are away (say fish, farm, smelt, mine <ore>, explore or guard).")); }
             case "watch" -> {
                 if (a1.equals("off")) return offline(id, "stop", tell);
@@ -3349,7 +2622,7 @@ final class Helper implements Listener {
             return true;
         }
         if (t.matches("(?:smelt now|smelt once|smelt|smelt nå)") && hm != null && conf.getString(path(id, "away.job"), "").equals("smelt")) {
-            tell.accept("I took " + awaySmelt(id, hm) + " things out of the furnaces at home and filled them again.");
+            tell.accept("I took " + awayWork.awaySmelt(id, hm) + " things out of the furnaces at home and filled them again.");
             return true;
         }
         Matcher pj = Pattern.compile("jobplace (.+)").matcher(t);
@@ -3372,8 +2645,8 @@ final class Helper implements Listener {
             conf.set(path(id, "away.full"), null);
             conf.set(path(id, "away.ms"), null);
             save();
-            yards.remove(id);
-            mobYards.remove(id);
+            awayWork.yards.remove(id);
+            awayWork.mobYards.remove(id);
             tell.accept("I will work at " + spot + " while you are away. " + "I look at what is there: fields I harvest and sow again, a mob farm I run (call the monsters, kill what comes to me, keep the drops and the experience for you), and where there is only water I fish."
                     + (placeNamed(id, spot) != null ? "" : " But I know no place called " + spot + " yet: stand there and say remember " + spot + ", or give me remember " + spot + " <x> <y> <z> [world].")
                     + (conf.getBoolean(path(id, "active")) ? "" : " But I am dismissed, so nothing happens until I am called."));
@@ -3394,34 +2667,6 @@ final class Helper implements Listener {
                 + (hm == null ? " But I have no home yet (stand at home in the game and say sethome, or give me sethome <x> <y> <z>)." : "")
                 + (conf.getBoolean(path(id, "active")) ? "" : " But I am dismissed, so nothing happens until I am called."));
         return true;
-    }
-
-    /** The owner's routines also run while they are away, for the orders offline() knows. */
-    void awayRoutines(UUID id, Location hm) {
-        List<String> rs = conf.getStringList(path(id, "routines"));
-        if (rs.isEmpty()) return;
-        long t = hm.getWorld().getTime(), now = System.currentTimeMillis();
-        Long lastSeen = awayTime.put(id, t);
-        long last = lastSeen == null ? -1 : lastSeen;
-        for (String r : rs) {
-            String[] a = r.split("\\|", 2);
-            if (a.length < 2) continue;
-            boolean due;
-            Integer at = TIMES.get(a[0]);
-            if (at != null) due = last >= 0 && last != t && (last < t ? last < at && at <= t : at > last || at <= t);
-            else {
-                long every = Long.parseLong(a[0].replaceAll("\\D", "")) * 60_000L;
-                Long ranAt = awayRan.putIfAbsent(id + r, now);
-                due = ranAt != null && now - ranAt >= every;
-                if (due) awayRan.put(id + r, now);
-            }
-            if (!due) continue;
-            for (String order : a[1].split("\\s*(?:,|;|\\band\\b|\\bog\\b|\\bthen\\b|\\bså\\b)\\s*")) {
-                if (order.isBlank()) continue;
-                String o = order.trim();
-                if (!offline(id, o, said -> awayLog(id, "routine \"" + o + "\": " + said))) awayLog(id, "routine \"" + o + "\": not something I can do while you are away");
-            }
-        }
     }
 
     /** From the server console or RCON: helper pause | resume | save | status | tell <player> <words>. */
@@ -3451,7 +2696,7 @@ final class Helper implements Listener {
                     String who = Bukkit.getOfflinePlayer(id).getName();
                     boolean on = Bukkit.getPlayer(id) != null;
                     String job = conf.getString(path(id, "away.job"), "guard");
-                    String did = awayDid(id);
+                    String did = awayWork.awayDid(id);
                     sb.append("\n").append(who == null ? k : who).append(" (").append(name(id)).append("): ").append(on ? "online" : "offline")
                             .append(", when away: ").append(flag(id, "watch", false) ? job : "nothing").append(home(id) == null ? ", NO HOME SET" : "");
                     if (!on && flag(id, "watch", false)) sb.append(", worked ").append(conf.getLong(path(id, "away.ms"), 0) / 60_000).append(" min")
@@ -5227,8 +4472,8 @@ final class Helper implements Listener {
             conf.set(path(id, "away.job"), "place");
             conf.set(path(id, "away.place"), hq.farm);
             conf.set(path(id, "away.full"), null);
-            mobYards.remove(id);
-            yards.remove(id);
+            awayWork.mobYards.remove(id);
+            awayWork.yards.remove(id);
         }
         talking.remove(id);
         Builder.Site site = builder.sites.get(id);
@@ -5288,7 +4533,7 @@ final class Helper implements Listener {
                 bar(p, "Talk mode is on: your chat goes to " + name(p.getUniqueId()) + " (say h to chat with the others)"); }, 60L);
         }
         if (active(p)) Bukkit.getScheduler().runTaskLater(plugin, () -> { if (p.isOnline() && active(p)) spawn(p, null); }, 40L);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (p.isOnline()) awayReport(p); }, 100L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (p.isOnline()) awayWork.awayReport(p); }, 100L);
     }
 
     // --- Talking to it: its name in chat ------------------------------------------------------------------
@@ -5535,7 +4780,7 @@ final class Helper implements Listener {
                 Location l = p.getLocation();
                 conf.set(path(id, "home"), spot(l));
                 save();
-                yards.remove(id);
+                awayWork.yards.remove(id);
                 say(p, "Got it, this is home. I bring my things to the chests here.");
             }
             case "home" -> {
@@ -5593,9 +4838,9 @@ final class Helper implements Listener {
                 bar(p, st.equals("bow") ? "Your helper shoots from where it stands" : st.equals("shield") ? "Your helper draws the monsters onto itself" : "Your helper fights up close");
             }
             case "build" -> { if (!builder.buildOrder(id, p, String.join(" ", args).toLowerCase(Locale.ROOT), said -> say(p, said))) say(p, "I can build a little house: build house (here, in front of you), build house <x> <y> <z>, and undo build."); }
-            case "sum" -> say(p, sum(id));
+            case "sum" -> say(p, awayWork.sum(id));
             case "log" -> say(p, conf.getString(path(id, "away.report"), "").isEmpty() ? "Nothing to tell from the last time you were away." : conf.getString(path(id, "away.report")));
-            case "finds" -> say(p, finds(id));
+            case "finds" -> say(p, awayWork.finds(id));
             case "shear" -> woolTrip(p, () -> { });
             case "tidy" -> {
                 List<Inventory> here = stores(p.getLocation(), 16);               // the chests where its owner stands, or else those at home
@@ -5716,8 +4961,8 @@ final class Helper implements Listener {
                     conf.set(path(id, "away.job"), "place");
                     conf.set(path(id, "away.place"), at);
                     save();
-                    yards.remove(id);
-                    mobYards.remove(id);
+                    awayWork.yards.remove(id);
+                    awayWork.mobYards.remove(id);
                     say(p, "When you log out I will work at " + at + ". " + "I look at what is there: fields I harvest and sow again, a mob farm I run (call the monsters, kill what comes to me, keep the drops and the experience for you), and where there is only water I fish.");
                     return;
                 }
