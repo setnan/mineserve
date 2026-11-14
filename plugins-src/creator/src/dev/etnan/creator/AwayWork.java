@@ -800,7 +800,7 @@ final class AwayWork {
             for (String order : a[1].split("\\s*(?:,|;|\\band\\b|\\bog\\b|\\bthen\\b|\\bså\\b)\\s*")) {
                 if (order.isBlank()) continue;
                 String o = order.trim();
-                if (!core.offline(id, o, said -> core.awayLog(id, "routine \"" + o + "\": " + said))) core.awayLog(id, "routine \"" + o + "\": not something I can do while you are away");
+                if (!core.orders.offline(id, o, said -> core.awayLog(id, "routine \"" + o + "\": " + said))) core.awayLog(id, "routine \"" + o + "\": not something I can do while you are away");
             }
         }
     }

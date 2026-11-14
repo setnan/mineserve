@@ -142,7 +142,7 @@ public final class Creator extends JavaPlugin implements Listener {
 
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, e -> {
             var r = e.registrar();
-            helper.register(r);
+            helper.orders.register(r);
             skins.register(r);
             r.register("craft", "Crafting table (creator power)", List.of("c"), station("crafting table", p -> p.openWorkbench(null, true)));
             r.register("bigbench", "Big Bench: 5x5 crafting for super tools (creator power)", List.of("bb", "tool_bigbench"), station("Big Bench", bigBench::open));
