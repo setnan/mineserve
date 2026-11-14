@@ -161,7 +161,6 @@ import org.bukkit.util.Vector;
  *                               there (it empties its bag at home by itself when the bag is full)
  * /helper fetch <item> [n]      bring you items from its bag, the chests next to it or the chests at home
  * /helper find <thing>          point to the nearest ore/block (20 blocks) or structure (village, stronghold …)
- * /helper ride                  carry you on its shoulders: steer with the movement keys, sneak to get off
  * /helper show                  let the other players see it too, on/off
  * /helper big | small | normal  the wand's size spells without a wand: 1.5 times bigger or smaller (¼ to 3 times).
  *                               Every step away from normal, either way, makes it stronger and faster (you too while
@@ -207,8 +206,8 @@ import org.bukkit.util.Vector;
  * /helper watch […]   what it does while you are logged out: guard home,
  *                               fish, harvest or smelt at home, dig for one kind of ore within 128 blocks of home, or
  *                               explore the land to 1000 blocks out and remember the buildings it finds. When bag and
- *                               chests are full it makes a new chest from planks or logs and sets it down at home (also on an empty server and after a restart, for up to settings.away-hours
- *                               in helpers.yml, default 2). It tells you how it went when you are back.
+ *                               chests are full it makes a new chest from planks or logs and sets it down at home (also on an empty server and after a restart, with no time limit unless
+ *                               settings.away-hours is set in helpers.yml). It tells you how it went when you are back.
  * On its own (you more than 12 blocks away, or logged out) it shuts the wooden doors and fence gates around it, so the
  * animals stay in. Its own tools have fortune III, and its rod luck of the sea III, so it brings back more.
  * Console/RCON: helper pause | resume | save | status | tell <player> <words>
@@ -235,7 +234,7 @@ import org.bukkit.util.Vector;
  *   Explorer   exploring, ore on the way, treasure maps
  *   Builder    buildings by hand, and taking them down
  *   Persona    personality, jokes, comments and habits
- *   Movement   merging, riding, bridges
+ *   Movement   merging and bridges
  */
 final class Helper implements Listener {
     final Orders orders = new Orders(this);
@@ -322,7 +321,6 @@ final class Helper implements Listener {
         {"home", "home|take me home|let'?s go home|hjem|ta meg hjem|vi drar hjem"},
         {"sethome", "set home|sethome|this is home|home is here|sett hjem|her er hjemme|dette er hjemme|her bor vi"},
         {"unload", "unload|empty|empty your bag|empty the bag|tøm|tøm sekken|tøm sekken din|tøm deg"},
-        {"ride", "ride|carry me|let me ride|ri|bær meg"},
         {"big", "big|bigger|grow|get bigger|get big|stor|større|bli stor|bli større|voks"},
         {"small", "small|smaller|shrink|get smaller|get small|liten|mindre|bli liten|bli mindre|krymp"},
         {"max", "max|maximum|max size|huge|giant|biggest|maks|størst|kjempestor|kjempe"},
@@ -365,6 +363,7 @@ final class Helper implements Listener {
     static final Pattern GOTO_WORDS = Pattern.compile("(?:take me to|bring me to|go to|teleport to|ta meg til|gå til|dra til|til)\\s+(.{1,30})");
     static final Pattern ARTICLE = Pattern.compile("^(?:the|a|an|some|en|et|ei|noen)\\s+");
     static final Set<Material> FUELS = Set.of(Material.COAL, Material.CHARCOAL, Material.COAL_BLOCK, Material.BLAZE_ROD, Material.LAVA_BUCKET, Material.DRIED_KELP_BLOCK);
+    static final Set<Material> RAW_ORES = Set.of(Material.RAW_IRON, Material.RAW_GOLD, Material.RAW_COPPER);   // what the furnaces take from the magic barrel
     static final Pattern COLLECT_WORDS = Pattern.compile("(?:go to|gå til|dra til)\\s+(.{1,30}?)\\s+(?:and|og)\\s+(?:fetch|get|bring|collect|hent|ta med)\\s+(?:everything|it all|all|alt|alt sammen)");
     static final Pattern TRADE_WORDS = Pattern.compile("(?:trade for|buy|buy me|kjøp|kjøp meg)\\s+(.{1,40})");
     static final Pattern GIVE_WORDS = Pattern.compile("(?:give|bring|send|gi|send)\\s+(?:this|it|dette|denne|den)\\s+(?:to|til)\\s+(\\w{3,16})");
@@ -403,7 +402,7 @@ final class Helper implements Listener {
         Location anchor;                                   // the guard post, the middle of the field, or the fishing water
         Deque<Block> queue = new ArrayDeque<>();           // blocks left to mine or harvest (shared when helpers work together)
         int done, stuck, cast;                             // cast: half-seconds until the fish bites, 0 = not cast yet
-        boolean riding, merged, gliding, hold;             // hold: clicked on, stands still and watches its owner, fights nothing
+        boolean merged, gliding, hold;             // hold: clicked on, stands still and watches its owner, fights nothing
         String farm;                                       // the mob farm it is running: it keeps its post there, strikes what it can reach and sorts the chests
         long farmSort;
         Location holdAt;                                   // where it was clicked on: it does not let itself be pushed or carried off from there
@@ -696,10 +695,6 @@ final class Helper implements Listener {
             }
             if (!h.w.isValid() || !h.m.isValid()) { spawn(p, null); continue; }
             if (h.merged) movement.autopilot(p, h);
-            if (h.riding) {
-                if (h.m.getPassengers().contains(p)) movement.steer(p, h);
-                else movement.stopRide(h);
-            }
             if (tick % 10 == 0) think(p, h);
             if (tick % 5 == 0) light(id, h);
             if (tick % 2 == 0 && flag(id, "bridge", false)) movement.bridge(p, h);
@@ -818,7 +813,6 @@ final class Helper implements Listener {
         if (h.stance == Stance.STAY) return;
         if (!h.merged) fightStyle(p, h);
         if (flag(id, "pickup", true)) pickUp(p, h);
-        if (h.riding) return;
         if (flag(id, "torch", false) && tick % 20 == 0) torch(w);
         if (h.merged) {                                                   // the owner is the body now
             h.goal = null;
@@ -941,7 +935,6 @@ final class Helper implements Listener {
             dirty.add(h.errand.id);
             h.errand = null;
         }
-        movement.stopRide(h);
         endGame(h);
         h.foe = null;
         if (h.ward != null) {
@@ -2151,7 +2144,7 @@ final class Helper implements Listener {
         return out;
     }
 
-    // --- Healing, a carried light, bridges and steps, riding, finding things ---------------------------------
+    // --- Healing, a carried light, bridges and steps, finding things ---------------------------------
 
     /** Regeneration for the owner, or the player it looks after, when they are down to four hearts and it is close. */
     void heal(Player p, H h, Player who) {
@@ -2787,7 +2780,7 @@ final class Helper implements Listener {
     // --- /helper -------------------------------------------------------------------------------------
 
     static final List<String> SUBS = List.of("follow", "stay", "come", "guard", "passive", "fight", "mine", "farm", "fish", "torch", "light", "bridge",
-            "home", "sethome", "unload", "fetch", "find", "ride", "show", "merge", "split", "big", "small", "normal", "max", "min", "defend", "help",
+            "home", "sethome", "unload", "fetch", "find", "show", "merge", "split", "big", "small", "normal", "max", "min", "defend", "help",
             "attack", "join", "craft", "smelt", "remember", "goto", "places", "forget", "watch", "dance", "callme", "sleep", "wake",
             "tidy", "shear", "repair", "collect", "trade", "give", "routine", "routines",
             "scout", "wayback", "style", "hide", "tag", "treasure", "hint", "talk", "sum", "log", "finds", "build", "personality", "continue", "rescue", "mobfarm",

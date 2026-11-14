@@ -45,13 +45,13 @@ With you:
   It builds on top of a foundation at your feet. `undo build` takes its last building down again.
 - **Carrying**: a bag (sneak + right-click), picks up drops, `fetch <item>`. `unload` takes the bag, and whatever
   is in the chest next to it, home to the chests there, or to your storage barrel if you have one.
-- **Getting around**: `remember <name>`, `goto <name>`, `places`, `scout`, `wayback`, `ride`. `merge` puts the
+- **Getting around**: `remember <name>`, `goto <name>`, `places`, `scout`, `wayback`. `merge` puts the
   helper inside you (you get its strength and can fly), `split` lets it out. `big`, `small`, `normal`.
 - **The rest**: hide and seek, tag, treasure hunts, jokes, a nickname for you (`callme <name>`), opinions on your
   builds and a warning when something sneaks up on you. When you die, it keeps your things.
 
-While you are logged out it works at home (set it with `/helper sethome`). It harvests, fishes, smelts and looks
-after the animals. When the fields are done it goes exploring, further out each time (up to about 3000 blocks),
+While you are logged out it works at home (set it with `/helper sethome`). It harvests, fishes, smelts (raw iron, gold and copper from your
+barrel too) and looks after the animals, for as long as you are away (`settings.away-hours` in helpers.yml sets a limit). When the fields are done it goes exploring, further out each time (up to about 3000 blocks),
 and saves the structures it finds as places. It also makes treasure maps for chests nobody has opened and digs
 whatever ore you have least of (diamond, gold, iron, coal, lapis, redstone, in that order). `find redstone` or
 `find birch` makes it look for one thing first, `find nothing` goes back to normal. `watch fish|farm|smelt|explore|guard|off`

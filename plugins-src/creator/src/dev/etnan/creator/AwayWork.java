@@ -76,7 +76,8 @@ final class AwayWork {
     /** Every ten seconds, for everyone who is logged out with a job for their helper. */
     void away() {
         if (core.paused()) { for (UUID id : new ArrayList<>(awayHeld.keySet())) { core.awayLog(id, "paused"); awayLet(id); } return; }
-        long max = (long) (core.conf.getDouble("settings.away-hours", 2) * 3_600_000L);
+        double hrs = core.conf.getDouble("settings.away-hours", 0);                 // 0 or less: no limit
+        long max = hrs <= 0 ? Long.MAX_VALUE : (long) (hrs * 3_600_000L);
         boolean changed = false;
         for (String k : core.conf.getKeys(false)) {
             UUID id;
@@ -201,7 +202,7 @@ final class AwayWork {
     }
 
     /** Done things out of the furnaces at home into the chests there; ores and raw food from the bag and the chests
-     *  into empty furnaces, and fuel the same way. Returns how many things came out. */
+     *  into empty furnaces (raw iron, gold and copper also from your magic barrel), and fuel the same way. Returns how many things came out. */
     int awaySmelt(UUID id, Location hm) {
         List<Inventory> from = new ArrayList<>(List.of(core.bag(id)));
         List<Inventory> chests = Helper.stores(hm, Helper.HOME);
@@ -233,6 +234,10 @@ final class AwayWork {
                     inv.setItem(i, null);
                     break load;
                 }
+            if (Helper.empty(f.getSmelting()) && Helper.empty(f.getResult()) && core.storage != null) {   // nothing in the bag or the chests: raw ore from your own store in the magic barrel
+                ItemStack ore = core.storage.takeMine(id, Helper.RAW_ORES::contains, 64);
+                if (ore != null) f.setSmelting(ore);
+            }
             if (!Helper.empty(f.getSmelting()) && Helper.empty(f.getFuel()))
                 fuel:
                 for (Inventory inv : from) for (int i = 0; i < inv.getSize(); i++) {

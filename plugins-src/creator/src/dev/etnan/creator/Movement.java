@@ -23,7 +23,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 /** The helper and its owner moving together: merging (the helper inside you, with its size, strength, light and
- *  flight, and its jobs done on autopilot), riding on its shoulders, and bridges or steps under your feet. */
+ *  flight, and its jobs done on autopilot), and bridges or steps under your feet. */
 final class Movement {
     final Helper core;
 
@@ -56,36 +56,6 @@ final class Movement {
         spot.setType(m);
         spot.getWorld().playSound(spot.getLocation(), spot.getBlockSoundGroup().getPlaceSound(), 0.7f, 1f);
         core.swing(p, h);
-    }
-
-    void startRide(Player p, Helper.H h) {
-        core.release(h);
-        h.w.teleport(p.getLocation());
-        h.m.teleport(p.getLocation());
-        h.w.setAware(false);                                   // no wandering off: the rider steers
-        Helper.set(h.w, Attribute.STEP_HEIGHT, 1.1);
-        h.riding = true;
-        if (!h.m.addPassenger(p)) { stopRide(h); core.say(p, "I can't lift you right now."); return; }
-        Helper.bar(p, "Movement keys steer, jump jumps, sprint runs, sneak gets you off");
-    }
-
-    void stopRide(Helper.H h) {
-        if (!h.riding) return;
-        h.riding = false;
-        h.w.setAware(true);
-        Helper.set(h.w, Attribute.STEP_HEIGHT, 0.6);
-        h.m.eject();
-    }
-
-    void steer(Player p, Helper.H h) {
-        Input in = p.getCurrentInput();
-        double yaw = Math.toRadians(p.getYaw());
-        double f = (in.isForward() ? 1 : 0) - (in.isBackward() ? 1 : 0), side = (in.isLeft() ? 1 : 0) - (in.isRight() ? 1 : 0);
-        Vector v = new Vector(-Math.sin(yaw) * f + Math.cos(yaw) * side, 0, Math.cos(yaw) * f + Math.sin(yaw) * side);
-        if (v.lengthSquared() > 0) v.normalize().multiply(in.isSprint() ? 0.8 : 0.45);
-        v.setY(in.isJump() && h.w.isOnGround() ? 0.55 : h.w.getVelocity().getY());
-        h.w.setVelocity(v);
-        h.w.setRotation(p.getYaw(), 0);
     }
 
     boolean merged(Entity e) {

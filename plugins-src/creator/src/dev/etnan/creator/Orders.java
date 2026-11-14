@@ -377,7 +377,8 @@ final class Orders {
             }
             case "status" -> {
                 StringBuilder sb = new StringBuilder(core.paused() ? "Helpers are PAUSED." : "Helpers are running.");
-                sb.append(" Work away from the owner stops after ").append(core.conf.getDouble("settings.away-hours", 2)).append(" hours.");
+                double hrs = core.conf.getDouble("settings.away-hours", 0);
+                sb.append(hrs > 0 ? " Work away from the owner stops after " + String.valueOf(hrs).replaceAll("\\.0$", "") + " hours." : " Work away from the owner has no time limit.");
                 for (String k : core.conf.getKeys(false)) {
                     UUID id;
                     try { id = UUID.fromString(k); } catch (IllegalArgumentException e) { continue; }
@@ -499,7 +500,7 @@ final class Orders {
         Helper.bar(p, name + " is thinking…");
     }
 
-    static final String USAGE = "/helper follow | stay | come | guard | passive | fight | mine | farm | fish | torch | light | bridge | home | sethome | unload | fetch <item> [n] | find <thing> | ride | show | merge | split | big | small | normal | help <player> | attack | join <player> | craft <item> [n] | smelt [item] | remember <name> | goto <name> | places | watch | dance | pickup | bag | unequip | stop"
+    static final String USAGE = "/helper follow | stay | come | guard | passive | fight | mine | farm | fish | torch | light | bridge | home | sethome | unload | fetch <item> [n] | find <thing> | show | merge | split | big | small | normal | help <player> | attack | join <player> | craft <item> [n] | smelt [item] | remember <name> | goto <name> | places | watch | dance | pickup | bag | unequip | stop"
             + " | quiet | skin <name> | name <name> | dismiss. Right-click it: stay/follow, or give it the armour or weapon in your hand."
             + " Sneak + right-click: its bag. Say its name in chat and it comes; its name and a question, and it answers.";
 
@@ -551,11 +552,11 @@ final class Orders {
         String sub = args.length == 0 ? "" : args[0].toLowerCase(Locale.ROOT);
         String rest = args.length < 2 ? "" : String.join(" ", Arrays.copyOfRange(args, 1, args.length));
         Helper.H h = core.helpers.get(id);
-        if (h == null && List.of("sleep", "wake", "follow", "stay", "guard", "mine", "farm", "fish", "bag", "stop", "home", "unload", "fetch", "ride", "merge", "split", "big", "small", "normal", "max", "min", "defend", "help", "attack", "join", "craft", "smelt", "goto", "dance", "repair", "collect", "trade", "give", "scout", "wayback", "hide", "tag", "treasure", "hint").contains(sub)) {
+        if (h == null && List.of("sleep", "wake", "follow", "stay", "guard", "mine", "farm", "fish", "bag", "stop", "home", "unload", "fetch", "merge", "split", "big", "small", "normal", "max", "min", "defend", "help", "attack", "join", "craft", "smelt", "goto", "dance", "repair", "collect", "trade", "give", "scout", "wayback", "hide", "tag", "treasure", "hint").contains(sub)) {
             p.sendMessage("You have no helper here: /helper");
             return;
         }
-        if (h != null && h.merged && List.of("stay", "guard", "ride", "come", "show", "help", "join", "dance", "hide", "tag").contains(sub)) {
+        if (h != null && h.merged && List.of("stay", "guard", "come", "show", "help", "join", "dance", "hide", "tag").contains(sub)) {
             core.say(p, "We are one right now. Say split first.");
             return;
         }
@@ -643,7 +644,6 @@ final class Orders {
             case "unload" -> core.unload(p, h, false);
             case "fetch" -> core.fetch(p, h, rest, false);
             case "find" -> core.find(p, rest, false);
-            case "ride" -> core.movement.startRide(p, h);
             case "torch" -> Helper.bar(p, toggle(id, "torch", false, args) ? "Your helper puts torches where it is dark" : "No more torches");
             case "pickup" -> Helper.bar(p, toggle(id, "pickup", true, args) ? "Your helper picks things up" : "Your helper leaves things on the ground");
             case "talk" -> {
@@ -828,15 +828,16 @@ final class Orders {
                 core.conf.set(core.path(id, "away.job"), a1.equals("guard") ? null : a1);
                 core.conf.set(core.path(id, "away.rest"), a1.equals("guard") ? true : null);
                 core.save();
-                String hours = String.valueOf(core.conf.getDouble("settings.away-hours", 2)).replaceAll("\\.0$", "");
+                double hrs = core.conf.getDouble("settings.away-hours", 0);
+                String hours = hrs > 0 ? ", for up to " + String.valueOf(hrs).replaceAll("\\.0$", "") + " hours" : ", for as long as you are away";
                 core.say(p, core.home(id) == null ? "I need a home for that first. Stand at home and say sethome."
                         : a1.equals("guard") ? "When you log out I stay and guard home."
                         : "When you log out I will " + (a1.equals("fish") ? "fish in the water at home" : a1.equals("farm") ? "harvest and replant the fields at home"
                                 : a1.equals("mine") ? "dig for " + core.conf.getString(core.path(id, "away.target"), "ore").toLowerCase(Locale.ROOT).replace('_', ' ') + " within 128 blocks of home"
                                 : a1.equals("mobfarm") ? "work at the mob farm" + (core.conf.contains(core.path(id, "places.mobfarm")) ? "" : " (stand in its killing room and say remember mobfarm first)") + ": call the monsters, kill what comes to me and keep the drops and the experience for you"
                                 : a1.equals("home") ? "work at home: fish, tend the fields, feed and shear the animals, slaughter when there are more than twelve grown ones of a kind, keep the furnaces going and the doors and gates shut"
-                                : a1.equals("explore") ? "explore the land around home and remember the buildings I find" : "keep the furnaces at home going, with ore and fuel from the chests")
-                                + ", for up to " + hours + " hours, also when nobody else is here. It goes in the chests at home, and I tell you how it went when you are back.");
+                                : a1.equals("explore") ? "explore the land around home and remember the buildings I find" : "keep the furnaces at home going, with ore and fuel from the chests and your magic barrel")
+                                + hours + ", also when nobody else is here. It goes in the chests at home, and I tell you how it went when you are back.");
             }
             case "pause", "resume" -> {
                 if (!p.isOp()) { core.say(p, "Only an operator can do that."); return; }

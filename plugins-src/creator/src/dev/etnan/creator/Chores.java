@@ -467,6 +467,10 @@ final class Chores {
                     put += it.getAmount();
                     break;
                 }
+            if (Helper.empty(f.getSmelting()) && Helper.empty(f.getResult()) && core.storage != null) {   // raw ore from your own store in the magic barrel
+                ItemStack ore = core.storage.takeMine(id, m -> Helper.RAW_ORES.contains(m) && (term.isEmpty() || m.name().contains(term)), 64);
+                if (ore != null) { f.setSmelting(ore); put += ore.getAmount(); }
+            }
             if (!Helper.empty(f.getSmelting()) && Helper.empty(f.getFuel())) {
                 noFuel = true;
                 for (int i = 0; i < bag.getSize(); i++) {
