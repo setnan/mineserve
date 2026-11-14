@@ -1,0 +1,53 @@
+{
+ "id": "longsword",
+ "name": "Longsword",
+ "color": "#50ECD8",
+ "tool": "sword",
+ "materials": [
+  "wood",
+  "stone",
+  "copper",
+  "iron",
+  "gold",
+  "diamond",
+  "netherite"
+ ],
+ "size": 1.8,
+ "description": [
+  "Reaches 6 blocks (normal is 3)",
+  "Also hits monsters around the one you strike",
+  "Made from two swords: a bit stronger, a bit slower"
+ ],
+ "recipe": [
+  "  T  ",
+  "  T  ",
+  "     ",
+  "     ",
+  "     "
+ ],
+ "ingredients": [
+  {
+   "char": "T",
+   "material": "@tool"
+  }
+ ],
+ "stats": {
+  "bonus_damage": 2,
+  "bonus_speed": -0.3,
+  "reach": 3,
+  "block_reach": 0
+ },
+ "abilities": [
+  {
+   "trigger": "hit",
+   "type": "sweep",
+   "strength": 2.5,
+   "seconds": 0,
+   "name": "",
+   "cooldown": 0
+  }
+ ],
+ "approved": true,
+ "made_by": "builtin",
+ "texture": null
+}

@@ -1,0 +1,60 @@
+{
+ "id": "greatscythe",
+ "name": "Great Scythe",
+ "color": "#B070F0",
+ "tool": "hoe",
+ "materials": [
+  "wood",
+  "stone",
+  "copper",
+  "iron",
+  "gold",
+  "diamond",
+  "netherite"
+ ],
+ "size": 1.5,
+ "description": [
+  "Right-click ripe crops: harvests 7x7 and replants",
+  "Right-click dirt: tills 5x5"
+ ],
+ "recipe": [
+  "     ",
+  " TT  ",
+  "     ",
+  "     ",
+  "     "
+ ],
+ "ingredients": [
+  {
+   "char": "T",
+   "material": "@tool"
+  }
+ ],
+ "stats": {
+  "bonus_damage": 0,
+  "bonus_speed": 0,
+  "reach": 0,
+  "block_reach": 1.5
+ },
+ "abilities": [
+  {
+   "trigger": "use",
+   "type": "harvest",
+   "strength": 3,
+   "seconds": 0,
+   "name": "",
+   "cooldown": 0
+  },
+  {
+   "trigger": "use",
+   "type": "till",
+   "strength": 2,
+   "seconds": 0,
+   "name": "",
+   "cooldown": 0
+  }
+ ],
+ "approved": true,
+ "made_by": "builtin",
+ "texture": null
+}

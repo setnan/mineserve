@@ -1,0 +1,119 @@
+# Hand-written command aliases. ./mc.sh sync-aliases (also run by up/restart) builds data/commands.yml from this
+# file + data/aliases-local.yml (your own, not in git) + the generated build catalog, blueprint and world aliases.
+#
+# This is the Bukkit commands configuration file for Paper.
+#
+# If you need help with the configuration or have any questions related to Paper,
+# join us in our Discord or check the docs page.
+#
+# File Reference: https://docs.papermc.io/paper/reference/bukkit-commands-configuration/
+# Docs: https://docs.papermc.io/
+# Discord: https://discord.gg/papermc
+# Website: https://papermc.io/
+
+command-block-overrides: []
+ignore-vanilla-permissions: true
+aliases:
+  icanhasbukkit:
+  - version $1-
+  superworld:
+  - mvtp world
+  # /new name [extra mv flags]: $2- are optional arguments ($$2- required them and gave "missing argument 2")
+  # mvtp right after mv create often fails because the world is not loaded yet: go there with /go <name> afterwards
+  new:
+  - mv create $$1 normal $2-
+  - tellraw @s {"text":"Creating the world. Type /go $1 to go there.","color":"gold"}
+  go:
+  - mvtp $1
+  # /creatorpower and /creatorpoweroff: chatbro.py grants or removes creator.craft (/craft and /c from plugins-src/creator)
+  # /master <name> | /master @a: grant chat-bridge access (server owner only, chatbro.py). /masteroff [name]: take it back
+  master:
+  - tellraw @s {"text":"[AI] …","color":"gray"}
+  masteroff:
+  - tellraw @s {"text":"[AI] …","color":"gray"}
+  creatorpower:
+  - tellraw @s {"text":"[AI] Turning on creator power…","color":"gray"}
+  creatorpoweroff:
+  - tellraw @s {"text":"[AI] Turning off creator power…","color":"gray"}
+  # Copy an area around you: /copyarea <forward> <back> <up> <down> <sides>, e.g. /copyarea 10 10 5 1 6
+  # down=1 includes the block you stand on. Directions follow the way you are looking.
+  copyarea:
+  - /pos1
+  - /pos2
+  - /expand $1 forward
+  - /expand $2 back
+  - /expand $3 up
+  - /expand $4 down
+  - /expand $5 left
+  - /expand $5 right
+  - /copy
+  # 100 blocks to every side and 100 up from where you stand, down to and including the block you stand on
+  copyarea100:
+  - /pos1
+  - /pos2
+  - /outset -h 100
+  - /expand 100 up
+  - /expand 1 down
+  - /copy
+  # Copy just one block: the one you are looking at (//hpos1 and //hpos2 select the target block)
+  copyblock:
+  - /hpos1
+  - /hpos2
+  - /copy
+  # Short form of /copyblock
+  cb:
+  - /hpos1
+  - /hpos2
+  - /copy
+  # Build a tunnel/bridge N blocks straight ahead in stone_bricks with a lantern every 10 blocks (supermann datapack)
+  tunnel:
+  - function supermann:tunnel {n:$1}
+  # Like /tunnel, but with a packed_ice floor
+  icetunnel:
+  - function supermann:icetunnel {n:$1}
+  # Glass bridge N blocks straight ahead at floor level, one wide
+  glassbridge:
+  - function supermann:glassbridge {n:$1}
+  # Ladder shaft N blocks down / up with a lantern every 10 blocks; stops at bedrock, glass against water and lava
+  staircase:
+  - function supermann:staircase {n:$1}
+  staircase_up:
+  - function supermann:staircase_up {n:$1}
+  # Cabin with fireplace and furniture right in front of you, door facing you
+  house:
+  - function supermann:house
+  # Copy N blocks ahead in the direction you look (backup before /tunnel N etc.), 4 to the sides, 6 up, 2 down
+  copyforward:
+  - /pos1
+  - /pos2
+  - /expand $1 forward
+  - /outset -h 4
+  - /expand 6 up
+  - /expand 2 down
+  - /copy
+  paste:
+  - /paste
+  pastenoair:
+  - /paste -a
+  # Restore: paste the clipboard back where it was copied from, wherever you stand
+  pasteback:
+  - /paste -o
+  undo:
+  - /undo
+  # /difficulty <level> is stored per world in Multiverse (vanilla /difficulty is overridden by Multiverse on restart)
+  difficulty:
+  - mv modify set difficulty $1
+  # Hide and seek: hides name tags (otherwise visible through walls) and the locator bar for everyone. /hideandseekoff = back
+  hideandseek:
+  - function supermann:hideandseek
+  hideandseekoff:
+  - function supermann:hideandseek_off
+  # /ai <wish>: hidden variant of "ai …" in chat; chatbro.py reads the command from the log. Only you see it.
+  ai:
+  - tellraw @s {"text":"…","color":"dark_gray"}
+  # /save home saves your home (supermann datapack); $1 is optional, without it all players gather at you
+  save:
+  - function supermann:save_cmd {a:"$1"}
+  # Teleports you to the home from /save home, also from another world. Not set = nothing happens
+  home:
+  - function supermann:home

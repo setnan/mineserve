@@ -1,0 +1,86 @@
+# Whitelist: nothing is tracked unless it is listed below. The server folder also holds secrets (.env,
+# .chatbro.env), player data, worlds, backups, logs and generated textures, none of which belong in git.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/.env.example
+!/.chatbro.env.example
+!/docker-compose.yml
+!/aliases.yml
+!/service/
+!/mc.sh
+!/chatbro.py
+!/findbuild.py
+!/blueprints.py
+!/worlds.py
+!/heads.py
+!/skins.py
+!/super_pack.py
+!/detector_pack.py
+!/wand_pack.py
+!/glowing_coal_pack.py
+!/golden_chicken_pack.py
+!/xray_pack.py
+
+# Creator plugin source (build with plugins-src/creator/build.sh)
+!/plugins-src/
+/plugins-src/*
+!/plugins-src/creator/
+/plugins-src/creator/out/
+/plugins-src/creator/*.jar
+
+# The supermann datapack and the command aliases, nothing else from the server data folder
+!/data/
+/data/*
+!/data/world/
+/data/world/*
+!/data/world/datapacks/
+/data/world/datapacks/*
+!/data/world/datapacks/supermann/
+
+# Saved worlds go in worlds/ but are not committed
+!/worlds/
+/worlds/*
+!/worlds/.gitkeep
+
+.DS_Store
+__pycache__/
+*.pyc
+
+# Generated content: blueprints (third-party GrabCraft builds and chat builds, rebuilt by blueprints.py) and the
+# last Codex build. The engine functions (bp_run, bp_undo* …) stay.
+/data/world/datapacks/supermann/data/supermann/function/bp/*
+!/data/world/datapacks/supermann/data/supermann/function/bp/house.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_list.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/codex/
+/data/world/datapacks/supermann/data/supermann/function/bp_castlegate.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_baroquegarden.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_brickmansion.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_lighthouse1.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_lighthouse2.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_modernhotel3.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_oddmedievalsmallwindmill.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_pirateshiptheblackpearl.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_smallsailingship.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chat_woodenmansion1.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_chinacastle.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_fantasyhouse.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_garden.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_ironfarm.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_japancastle.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_mansion.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_nordichouse.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_skyscraper.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_starterhouse.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_storage.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_supercastle.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_underwaterhouse.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/bp_victoriancastle.mcfunction
+/data/world/datapacks/supermann/data/supermann/function/heads_style.mcfunction
+
+# Personal to this server: the 100-chest storage build (fixed coordinates in one world), the generated list
+# of extra Supermann worlds
+/data/world/datapacks/supermann/data/supermann/function/storage/
+/data/world/datapacks/supermann/STORAGE-README.md
+/data/world/datapacks/supermann/data/supermann/function/superworlds.mcfunction

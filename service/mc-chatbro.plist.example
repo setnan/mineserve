@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- macOS: runs chatbro.py in the background and restarts it if it stops.
+	     1. Change the path in ProgramArguments to where you cloned the repo.
+	     2. cp service/mc-chatbro.plist.example ~/Library/LaunchAgents/local.mc-chatbro.plist
+	     3. ./mc.sh chatbro start   (stop / restart / status / log work the same way) -->
+	<key>Label</key>
+	<string>local.mc-chatbro</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/zsh</string>
+		<string>-lc</string>
+		<string>exec python3 "$HOME/minecraft/chatbro.py"</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>StandardOutPath</key>
+	<string>/tmp/mc-chatbro.out</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/mc-chatbro.err</string>
+</dict>
+</plist>

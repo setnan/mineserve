@@ -1,0 +1,52 @@
+{
+ "id": "bigshovel",
+ "name": "Big Shovel",
+ "color": "#40D060",
+ "tool": "shovel",
+ "materials": [
+  "wood",
+  "stone",
+  "copper",
+  "iron",
+  "gold",
+  "diamond",
+  "netherite"
+ ],
+ "size": 1.4,
+ "description": [
+  "Digs 3x3 blocks at a time",
+  "Sneak = just one block"
+ ],
+ "recipe": [
+  "     ",
+  " TT  ",
+  "     ",
+  "     ",
+  "     "
+ ],
+ "ingredients": [
+  {
+   "char": "T",
+   "material": "@tool"
+  }
+ ],
+ "stats": {
+  "bonus_damage": 0,
+  "bonus_speed": 0,
+  "reach": 0,
+  "block_reach": 1.5
+ },
+ "abilities": [
+  {
+   "trigger": "mine",
+   "type": "area",
+   "strength": 1,
+   "seconds": 0,
+   "name": "",
+   "cooldown": 0
+  }
+ ],
+ "approved": true,
+ "made_by": "builtin",
+ "texture": null
+}

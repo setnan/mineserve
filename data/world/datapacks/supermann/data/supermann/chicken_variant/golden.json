@@ -1,0 +1,5 @@
+{
+  "asset_id": "supermann:entity/chicken/golden",
+  "baby_asset_id": "supermann:entity/chicken/golden_baby",
+  "spawn_conditions": []
+}

@@ -1,0 +1,8 @@
+name: Creator
+version: 2.0.0
+main: dev.etnan.creator.Creator
+api-version: "26.1"
+description: Crafting stations anywhere, powers, storage, metal detector, magic wand, Big Bench super tools, golden chicken and more
+permissions:
+  creator.craft:
+    default: false

@@ -1,0 +1,15 @@
+# Linux (systemd user service): runs chatbro.py in the background and restarts it if it stops.
+#   mkdir -p ~/.config/systemd/user && cp service/mc-chatbro.service ~/.config/systemd/user/
+#   (change WorkingDirectory if the repo is not in ~/minecraft), then: ./mc.sh chatbro start
+# To keep it running after you log out: loginctl enable-linger $USER
+[Unit]
+Description=Minecraft chat bridge (chatbro.py)
+
+[Service]
+WorkingDirectory=%h/minecraft
+ExecStart=/usr/bin/env python3 chatbro.py
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

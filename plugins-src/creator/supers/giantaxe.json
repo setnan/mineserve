@@ -1,0 +1,53 @@
+{
+ "id": "giantaxe",
+ "name": "Giant Axe",
+ "color": "#E04040",
+ "tool": "axe",
+ "materials": [
+  "wood",
+  "stone",
+  "copper",
+  "iron",
+  "gold",
+  "diamond",
+  "netherite"
+ ],
+ "size": 1.5,
+ "description": [
+  "Fells the whole tree in one chop",
+  "Plants a new tree where it stood",
+  "Sneak = just one log"
+ ],
+ "recipe": [
+  "     ",
+  " TT  ",
+  "     ",
+  "     ",
+  "     "
+ ],
+ "ingredients": [
+  {
+   "char": "T",
+   "material": "@tool"
+  }
+ ],
+ "stats": {
+  "bonus_damage": 2,
+  "bonus_speed": 0,
+  "reach": 0,
+  "block_reach": 0
+ },
+ "abilities": [
+  {
+   "trigger": "mine",
+   "type": "tree",
+   "strength": 1,
+   "seconds": 0,
+   "name": "",
+   "cooldown": 0
+  }
+ ],
+ "approved": true,
+ "made_by": "builtin",
+ "texture": null
+}

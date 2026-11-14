@@ -1,0 +1,88 @@
+# Minecraft server in Docker (itzg/minecraft-server)
+# All normal config is in .env (see .env.example). Gamerules are set in RCON_CMDS_STARTUP below.
+# Use ./mc.sh for daily operation (start, stop, console, op, whitelist, gamerule, backup).
+
+services:
+  mc:
+    image: itzg/minecraft-server:latest
+    container_name: mc
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    ports:
+      - "25565:25565"
+    env_file: .env
+    environment:
+      EULA: "TRUE"
+      # Runs every time the server starts. Add/remove lines as needed.
+      # All gamerules: https://minecraft.wiki/w/Game_rule
+      # Note: Minecraft 26.x uses snake_case names (keep_inventory). Older versions (<= 1.21.10)
+      # use camelCase (keepInventory). Check values live with:  ./mc.sh gamerule keep_inventory
+      RCON_CMDS_STARTUP: |-
+        gamerule keep_inventory true
+        gamerule advance_time true
+        gamerule advance_weather true
+        gamerule mob_griefing true
+        gamerule fire_spread_radius_around_player 128
+        gamerule spawn_phantoms true
+        gamerule natural_health_regeneration true
+        gamerule players_sleeping_percentage 1
+        gamerule show_death_messages true
+        gamerule show_advancement_messages true
+        gamerule immediate_respawn false
+        gamerule command_block_output false
+        gamerule send_command_feedback true
+    volumes:
+      - ./data:/data
+      - ./worlds:/worlds:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${CONTAINER_MEMORY_LIMIT:-6G}
+
+  # Tunnel via playit.gg so players outside the home network can join without port forwarding.
+  # Shares the network with mc, so the tunnel points at 127.0.0.1:25565. The key is in .env (PLAYIT_SECRET_KEY).
+  # Only started when COMPOSE_PROFILES=playit is set in .env.
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:1.0
+    container_name: mc-playit
+    restart: unless-stopped
+    profiles: [playit]
+    network_mode: "service:mc"
+    depends_on:
+      - mc
+    environment:
+      SECRET_KEY: ${PLAYIT_SECRET_KEY}
+
+  # Serves the resource pack (data/resourcepack/, built by ./mc.sh heads) on port 8080.
+  # The server points clients here via RESOURCE_PACK in .env. Outside the home network you need a playit tunnel for it.
+  pack:
+    image: nginx:alpine
+    container_name: mc-pack
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./data/resourcepack:/usr/share/nginx/html:ro
+
+  # World backup: run "./mc.sh backup" on a schedule (here weekly, Monday 12:00, from a launchd job).
+  # The container never takes copies on its own (the interval is practically infinite) and keeps the last 4.
+  backup:
+    image: itzg/mc-backup:latest
+    container_name: mc-backup
+    restart: unless-stopped
+    depends_on:
+      mc:
+        condition: service_healthy
+    environment:
+      BACKUP_INTERVAL: "${BACKUP_INTERVAL:-3650d}"
+      BACKUP_ON_STARTUP: "false"
+      PRUNE_BACKUPS_DAYS: "${PRUNE_BACKUPS_DAYS:-0}"
+      PRUNE_BACKUPS_COUNT: "${PRUNE_BACKUPS_COUNT:-4}"
+      INITIAL_DELAY: "5m"
+      RCON_HOST: mc
+      RCON_PASSWORD: ${RCON_PASSWORD}
+      TZ: "${TZ:-Europe/Oslo}"
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups

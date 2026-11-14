@@ -1,0 +1,8 @@
+{
+  "pack": {
+    "description": "Supermann: super powers and gear for everyone who joins",
+    "pack_format": 121,
+    "min_format": [121, 0],
+    "max_format": [999, 0]
+  }
+}
