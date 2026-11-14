@@ -211,6 +211,23 @@ final class Storage implements Listener {
     /** Is this block a magic storage barrel? */
     boolean isBarrel(Block b) { return nameOf(b) != null; }
 
+    /** Takes up to n of the first item in the player's own store that ok accepts (plain items only, nothing named
+     *  or enchanted), or null when there is none. */
+    ItemStack takeMine(UUID id, java.util.function.Predicate<Material> ok, int n) {
+        Map<String, Long> st = store("mine:" + id);
+        for (Map.Entry<String, Long> e : st.entrySet()) {
+            ItemStack it = itemOf(e.getKey());
+            if (!ok.test(it.getType()) || it.hasItemMeta() && !it.getItemMeta().equals(new ItemStack(it.getType()).getItemMeta())) continue;
+            int got = (int) Math.min(n, Math.min(e.getValue(), it.getMaxStackSize()));
+            if (got <= 0) continue;
+            if (e.getValue() - got <= 0) st.remove(e.getKey()); else e.setValue(e.getValue() - got);
+            dirty = true;
+            it.setAmount(got);
+            return it;
+        }
+        return null;
+    }
+
     /** How many of these kinds of item the player has in their own store. */
     long countMine(UUID id, java.util.Set<Material> kinds) {
         long n = 0;

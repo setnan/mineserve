@@ -244,7 +244,11 @@ final class AwayWork {
                     f.setFuel(one);
                     break fuel;
                 }
-            if (!Helper.empty(f.getSmelting()) && Helper.empty(f.getFuel())) core.awayWarn(id, "fuel", "a furnace at home has no fuel (coal, charcoal, blaze rods, a lava bucket or dried kelp blocks in a chest)");
+            if (!Helper.empty(f.getSmelting()) && Helper.empty(f.getFuel()) && core.storage != null) {      // none in the bag or the chests: from your own store in the magic barrel
+                ItemStack one = core.storage.takeMine(id, m -> Helper.FUELS.contains(m) && m != Material.LAVA_BUCKET, 8);
+                if (one != null) f.setFuel(one);
+            }
+            if (!Helper.empty(f.getSmelting()) && Helper.empty(f.getFuel())) core.awayWarn(id, "fuel", "a furnace at home has no fuel (coal, charcoal, blaze rods, a lava bucket or dried kelp blocks in a chest or your magic barrel)");
         }
         core.dirty.add(id);
         core.xp(id, (int) Math.round(took * 0.35));                            // about what a furnace gives per thing

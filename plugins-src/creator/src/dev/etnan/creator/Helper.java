@@ -2910,12 +2910,16 @@ final class Helper implements Listener {
                     noFuel = false;
                     break;
                 }
+                if (noFuel && storage != null) {                       // from your own store in the magic barrel
+                    ItemStack one = storage.takeMine(id, m -> FUELS.contains(m) && m != Material.LAVA_BUCKET, 8);
+                    if (one != null) { f.setFuel(one); noFuel = false; }
+                }
             }
         }
         dirty.add(id);
         zip(p, h);
         say(p, (took + put == 0 ? "Nothing was done yet, and I have nothing to put in." : "I took out " + took + " and put in " + put + ".")
-                + (noFuel ? " A furnace has no fuel: give me coal, charcoal, blaze rods or a lava bucket." : ""));
+                + (noFuel ? " A furnace has no fuel: give me coal, charcoal, blaze rods or a lava bucket, or put some in your magic barrel." : ""));
     }
 
     // --- Healing, a carried light, bridges and steps, riding, finding things ---------------------------------
