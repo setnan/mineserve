@@ -269,3 +269,9 @@ bridge service and the `launchctl` parts of `mc.sh` are macOS-only.
 
 `./mc.sh backup` puts a snapshot in `backups/` (run it from cron or launchd), `./mc.sh backups` lists them.
 To restore, stop the server, unpack a `backups/world-*.tgz` into `data/` and start it again.
+
+## Feedback
+
+This is open source under the [MIT license](LICENSE), so use whatever you like. It is a hobby project for my
+family, but if you try it, find a bug or have an idea for something better, open an issue or a pull request.
+I would like to hear about it.
