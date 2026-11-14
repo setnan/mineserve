@@ -218,7 +218,25 @@ final class Orders {
             tell.accept("I will explore the land around home while you are away, and remember the buildings I find." + (hm == null ? " But I have no home yet (stand at home in the game and say sethome, or give me sethome <x> <y> <z>)." : ""));
             return true;
         }
-        m = Pattern.compile("(?:mine|dig for|dig|find|look for|finn|let etter|grav etter|grav|hugg)\\s+(.{1,30})").matcher(t);
+        m = Pattern.compile("(?:find|look for|finn|let etter)\\s+(.{1,30})").matcher(t);      // what it looks for first while exploring
+        if (m.matches()) {
+            if (m.group(1).matches("nothing|nothing special|anything|off|stop|none|ingenting|alt")) {
+                core.conf.set(core.path(id, "seek"), null);
+                core.explorer.seekNow.remove(id);
+                core.save();
+                tell.accept("Fine, while exploring I dig for what we have least of again: diamond, gold, iron, coal, lapis, redstone, in that order.");
+                return true;
+            }
+            String spec = Explorer.seekSpec(m.group(1));
+            if (spec != null) {
+                core.conf.set(core.path(id, "seek"), spec);
+                core.save();
+                core.awayLog(id, "looks for " + Explorer.seekWord(spec) + " first while exploring (asked for)");
+                tell.accept("While I explore I look for " + Explorer.seekWord(spec) + " first, however much we have. Say find nothing to let me choose again.");
+                return true;
+            }
+        }
+        m = Pattern.compile("(?:mine|dig for|dig|grav etter|grav|hugg)\\s+(.{1,30})").matcher(t);
         if (m.matches()) {
             String target = Explorer.oreTarget(m.group(1));
             if (target == null) { tell.accept("I can dig for ores while you are away: diamond, coal, iron, gold, copper, redstone, lapis, emerald, quartz, ancient debris, obsidian. Not " + m.group(1) + "."); return true; }
