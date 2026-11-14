@@ -60,7 +60,7 @@ final class Orders {
                 if (h != null) h.m.customName(Component.text(name));
                 tell.accept("I am now called " + name + ".");
             }
-            case "personality", "personlighet" -> tell.accept(core.personality(id, rest));
+            case "personality", "personlighet" -> tell.accept(core.persona.personality(id, rest));
             case "callme" -> {
                 if (rest.isEmpty()) { tell.accept("callme <name>"); return true; }
                 core.conf.set(core.path(id, "nick"), rest.length() > 24 ? rest.substring(0, 24) : rest);
@@ -76,7 +76,7 @@ final class Orders {
                     ResolvableProfile rp = core.skins.packProfile(sl);
                     h.m.setProfile(rp != null ? rp : ResolvableProfile.resolvableProfile().name(want).build());
                 }
-                tell.accept(Helper.look(want) + " (I now look like " + want + ".)");
+                tell.accept(Persona.look(want) + " (I now look like " + want + ".)");
             }
             case "quiet", "torch", "light", "bridge", "pickup", "show" -> {
                 boolean def = sub.equals("pickup");
@@ -188,7 +188,7 @@ final class Orders {
     boolean offline(UUID id, String words, Consumer<String> tell) {
         String t = Helper.POLITE.matcher(words.replaceAll("[.!?\\s]+$", "").trim()).replaceAll("").trim().toLowerCase(Locale.ROOT);
         if (core.builder.buildOrder(id, null, t, tell)) return true;
-        if (t.matches(".*\\b(joke|jokes|vits|vitser|spøk)\\b.*")) { tell.accept(core.joke(id)); return true; }
+        if (t.matches(".*\\b(joke|jokes|vits|vitser|spøk)\\b.*")) { tell.accept(core.persona.joke(id)); return true; }
         if (settings(id, words.trim(), t, tell)) return true;
         Location hm = core.home(id);
         Matcher m = Pattern.compile("(?:trade for|trade|buy me|buy|kjøp meg|kjøp|handle|bytt til deg)\\s+(.{1,40})").matcher(t);
@@ -418,9 +418,9 @@ final class Orders {
                 if (off == null || !core.conf.contains(off.getUniqueId().toString())) { to.sendMessage(args[1] + " has no helper (check the spelling)."); return; }
                 UUID id = off.getUniqueId();
                 String who = off.getName();
-                if (!offline(id, words, said -> { said = core.voice(id, said); to.sendMessage(who + "'s helper: " + said); core.awayLog(id, "(from the console: " + words + ") " + said); }))
-                    if (!words.trim().toLowerCase(Locale.ROOT).matches("help|hjelp|\\?|what can you do|hva kan du")) to.sendMessage(who + "'s helper: " + core.voice(id, core.shrug(id, words)));
-                    else to.sendMessage(who + "'s helper: " + core.doing(id) + " What works while you are away:\n"
+                if (!offline(id, words, said -> { said = core.persona.voice(id, said); to.sendMessage(who + "'s helper: " + said); core.awayLog(id, "(from the console: " + words + ") " + said); }))
+                    if (!words.trim().toLowerCase(Locale.ROOT).matches("help|hjelp|\\?|what can you do|hva kan du")) to.sendMessage(who + "'s helper: " + core.persona.voice(id, core.persona.shrug(id, words)));
+                    else to.sendMessage(who + "'s helper: " + core.persona.doing(id) + " What works while you are away:\n"
                             + "  jobs while away: mobfarm [name], farm <place> (at a saved place: fields, mob farm or fishing, whatever is there), work (a bit of everything at home), fish, farm, smelt, mine <ore>, explore, guard, stop\n"
                             + "  at once: joke, build house <x> <y> <z> [world], undo build; at home: sum, finds, tidy, unload, trade, trade <item> [times], craft <item> [n], collect <place>, bag\n"
                             + "  settings: personality <name> [name] | reset, name <name>, skin <name>, callme <name>, big, small, normal, style sword|bow|shield, passive, fight, quiet, torch, light, bridge, pickup, show [on|off]\n"
@@ -447,7 +447,7 @@ final class Orders {
         Matcher mfw = Pattern.compile("(?:run |drive |driv |kjør |work (?:at |on )?|jobb (?:på |i |ved )?)?(?:the )?mob ?farm(?:en)?\\b\\s*(.*)").matcher(t);
         if (mfw.matches()) { command(p, mfw.group(1).isEmpty() ? new String[] {"mobfarm"} : ("mobfarm " + mfw.group(1)).split(" ")); return; }
         Matcher pm = Pattern.compile("(?:personality|personlighet)\\b\\s*(.*)|(reset) (?:your )?personality|(nullstill) personlighet(?:en)?").matcher(t);
-        if (pm.matches()) { core.say(p, core.personality(p.getUniqueId(), pm.group(1) != null ? pm.group(1) : "reset")); return; }
+        if (pm.matches()) { core.say(p, core.persona.personality(p.getUniqueId(), pm.group(1) != null ? pm.group(1) : "reset")); return; }
         Matcher fp = Pattern.compile("(?:farm|work|harvest|jobb|høst|arbeid)(?: at| on| in| på| i| ved)?(?: the)? (.{2,30})").matcher(t);
         if (fp.matches() && !Helper.slug(fp.group(1)).matches("home|hjemme|hjem|at_home|around_the_house") && core.conf.contains(core.path(p.getUniqueId(), "places." + Helper.slug(fp.group(1))))) {
             command(p, new String[] {"watch", "farm", Helper.slug(fp.group(1))});
@@ -495,7 +495,7 @@ final class Orders {
         core.asked.put(p.getUniqueId(), now);
         if (!core.helpers.containsKey(p.getUniqueId())) command(p, new String[] {"summon"});
         String name = core.name(p.getUniqueId());
-        core.plugin.getLogger().info("HELPER_ASK " + p.getName() + "|" + name.replace('|', ' ') + "|" + (core.context(p) + core.personaNote(p.getUniqueId())).replace('|', ' ') + "|" + text.replaceAll("\\s+", " "));
+        core.plugin.getLogger().info("HELPER_ASK " + p.getName() + "|" + name.replace('|', ' ') + "|" + (core.persona.context(p) + core.persona.personaNote(p.getUniqueId())).replace('|', ' ') + "|" + text.replaceAll("\\s+", " "));
         Helper.bar(p, name + " is thinking…");
     }
 
@@ -884,7 +884,7 @@ final class Orders {
                 if (h != null) h.m.setProfile(core.profile(p));
                 if (core.skins.packProfile(s) != null && core.skins.signed(s) == null) core.plugin.getLogger().info("HELPER_SIGN " + p.getName() + "|" + s);   // ready for the next merge
                 if (h != null && h.merged) core.wearSkin(p, false);
-                core.say(p, Helper.look(want));
+                core.say(p, Persona.look(want));
             }
             case "name" -> {
                 String name = rest.replace('|', ' ').trim();
@@ -903,7 +903,7 @@ final class Orders {
                 p.sendMessage(Component.text("Your helper went home. /helper brings it back.", NamedTextColor.GOLD));
             }
             case "say" -> { if (!rest.isEmpty()) core.say(p, rest, false); }
-            case "personality" -> core.say(p, core.personality(id, rest));
+            case "personality" -> core.say(p, core.persona.personality(id, rest));
             case "buildplan" -> core.builder.buildPlan(id, said -> core.say(p, said));
             case "ask" -> talk(p, rest);
             default -> talk(p, String.join(" ", args));
