@@ -92,6 +92,10 @@ public final class Creator extends JavaPlugin implements Listener {
     private GlowingCoal glowingCoal;
     private GoldenChicken goldenChicken;
     private Helper helper;
+    private HavenPortals havenPortals;
+    private HavenArmor havenArmor;
+    private HavenCreatures havenCreatures;
+    private TheLion theLion;
     private Skins skins;
     private XrayGoggles xray;
     private File dataFile;
@@ -136,6 +140,22 @@ public final class Creator extends JavaPlugin implements Listener {
         helper.useStorage(storage);
         storage.onUse = helper::barrelUsed;
         getServer().getPluginManager().registerEvents(helper, this);
+        havenPortals = new HavenPortals(this);
+        getServer().getPluginManager().registerEvents(havenPortals, this);
+        Haven.INSTANCE.setPlugin(this);
+        Haven.INSTANCE.setSkins(skins);
+        Haven.INSTANCE.setChickens(goldenChicken);
+        var havenItems = new HavenItems();
+        havenItems.recipes();
+        havenArmor = new HavenArmor(havenItems);
+        var havenMagic = new HavenMagic(havenItems, havenArmor);
+        havenCreatures = new HavenCreatures(havenItems, havenArmor);
+        var havenWorld = new HavenWorld(havenItems, havenMagic, havenCreatures);
+        var havenWorlds = new HavenWorlds();
+        theLion = new TheLion(havenMagic, havenWorld, helper);
+        new HavenMusic(havenWorld);
+        for (Listener l : new Listener[] { havenItems, havenArmor, havenMagic, havenCreatures, havenWorld, havenWorlds, theLion, new WorldNames() })
+            getServer().getPluginManager().registerEvents(l, this);
         for (World w : Bukkit.getWorlds()) sleepRule(w);
         Bukkit.getScheduler().runTaskTimer(this, this::magnet, 20L, 4L);
         Bukkit.getScheduler().runTaskTimer(this, this::lys, 20L, 10L);
@@ -144,6 +164,8 @@ public final class Creator extends JavaPlugin implements Listener {
             var r = e.registrar();
             helper.orders.register(r);
             skins.register(r);
+            havenPortals.register(r);
+            theLion.register(r);
             r.register("craft", "Crafting table (creator power)", List.of("c"), station("crafting table", p -> p.openWorkbench(null, true)));
             r.register("bigbench", "Big Bench: 5x5 crafting for super tools (creator power)", List.of("bb", "tool_bigbench"), station("Big Bench", bigBench::open));
             r.register("tool_anvil", "Anvil (creator power)", station("anvil", p -> p.openAnvil(null, true)));
@@ -205,8 +227,17 @@ public final class Creator extends JavaPlugin implements Listener {
         });
     }
 
+    /** Haven worlds (<world>_haven) use the island generator, also when Multiverse loads them. */
+    @Override
+    public org.bukkit.generator.ChunkGenerator getDefaultWorldGenerator(String worldName, String id) {
+        return worldName.toLowerCase().endsWith("_haven") || "haven".equals(id) ? new HavenGenerator() : null;
+    }
+
     @Override
     public void onDisable() {
+        if (havenArmor != null) havenArmor.shutdown();
+        if (havenCreatures != null) havenCreatures.shutdown();
+        if (theLion != null) theLion.shutdown();
         if (storage != null) storage.save();
         if (wand != null) wand.shutdown();
         if (bigBench != null) bigBench.shutdown();

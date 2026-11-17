@@ -236,7 +236,7 @@ import org.bukkit.util.Vector;
  *   Persona    personality, jokes, comments and habits
  *   Movement   merging and bridges
  */
-final class Helper implements Listener {
+public final class Helper implements Listener {
     final Orders orders = new Orders(this);
     final Chores chores = new Chores(this);
     final AwayWork awayWork = new AwayWork(this);

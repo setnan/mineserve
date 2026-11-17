@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:random_selector",
+  "default": "haven:mangrove_checked_oasis",
+  "features": [
+    {
+      "chance": 0.85,
+      "feature": "haven:tall_mangrove_checked_oasis"
+    }
+  ]
+}

@@ -384,6 +384,17 @@ final class Wand implements Listener {
         return p.rayTraceBlocks(range, FluidCollisionMode.NEVER);
     }
 
+    /** The Lion of Haven: the wand does nothing to it at all. */
+    private boolean lion(Entity e) {
+        return e.getPersistentDataContainer().has(new NamespacedKey(plugin, "the_lion"));
+    }
+
+    private boolean beyond(Player p, Entity e) {
+        if (!lion(e)) return false;
+        p.sendActionBar(Component.text("The wand has no power over the Lion", NamedTextColor.GOLD));
+        return true;
+    }
+
     private LivingEntity living(Player p, double range, boolean players) {
         RayTraceResult r = p.getWorld().rayTraceEntities(p.getEyeLocation(), p.getEyeLocation().getDirection(), range, 0.4,
                 e -> e != p && e instanceof LivingEntity && (players || !(e instanceof Player)));
@@ -394,7 +405,24 @@ final class Wand implements Listener {
         return (LivingEntity) r.getHitEntity();
     }
 
+    private static final Set<String> AT_SOMETHING = Set.of("friendly", "hostile", "outfit", "big", "small", "lift", "fetch", "freeze",
+            "disarm", "duplicate", "variant", "gold", "zombify", "tame", "ally", "pet", "ride");
+
     private boolean cast(Player p, String mode) {
+        if (AT_SOMETHING.contains(mode)) {                     // pointed at the Lion: nothing happens
+            RayTraceResult r = p.getWorld().rayTraceEntities(p.getEyeLocation(), p.getEyeLocation().getDirection(), 32, 0.6, e -> e != p);
+            if (r != null && r.getHitEntity() != null && beyond(p, r.getHitEntity())) return false;
+            if (r != null && r.getHitEntity() != null && (mode.equals("disarm") || mode.equals("ride") || mode.equals("fetch"))) {
+                String role = r.getHitEntity().getPersistentDataContainer().get(new NamespacedKey(plugin, "haven_role"), PersistentDataType.STRING);
+                if ("angel".equals(role) || "builder".equals(role)) {      // big, small and lift are fine; these are not
+                    p.sendActionBar(Component.text(("angel".equals(role) ? "An angel" : "A builder") + " is not yours to " + mode, NamedTextColor.GOLD));
+                    return false;
+                }
+            }
+        }
+        if (mode.equals("fire") && p.getWorld().getName().toLowerCase(Locale.ROOT).endsWith("_haven")) {
+            p.sendActionBar(Component.text("No fire in Haven", NamedTextColor.GOLD)); return false;
+        }
         switch (mode) {
             case "floor": return floor(p);
             case "wall": return wall(p);
@@ -454,6 +482,7 @@ final class Wand implements Listener {
                         e -> e != p && !(e instanceof Player));
                 if (r == null || r.getHitEntity() == null) return miss(p);
                 Entity t = r.getHitEntity();
+                if (beyond(p, t)) return false;
                 Location to = p.getLocation().add(p.getLocation().getDirection().setY(0).normalize().multiply(1.5));
                 to.setYaw(t.getLocation().getYaw());
                 t.teleport(to);
@@ -592,6 +621,9 @@ final class Wand implements Listener {
     // --- Morph --------------------------------------------------------------------------------------
 
     private boolean morph(Player p, boolean nice) {
+        if (!nice && p.getWorld().getName().toLowerCase(Locale.ROOT).endsWith("_haven")) {
+            p.sendActionBar(Component.text("Nothing turns evil in Haven", NamedTextColor.GOLD)); return false;
+        }
         LivingEntity t = living(p, 32, false);
         if (t == null) return miss(p);
         if (BOSSES.contains(t.getType())) { p.sendActionBar(Component.text("Bosses are too strong for the wand", NamedTextColor.RED)); return false; }
@@ -746,6 +778,7 @@ final class Wand implements Listener {
                 || er.getHitPosition().distanceSquared(eye.toVector()) < br.getHitPosition().distanceSquared(eye.toVector()));
         if (entityFirst) {
             Entity e = er.getHitEntity();
+            if (beyond(p, e)) return false;
             if (e instanceof Item it) {
                 ItemStack copy = it.getItemStack().clone();
                 e.getWorld().dropItem(e.getLocation(), copy);

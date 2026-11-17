@@ -1,0 +1,13 @@
+{
+  "assets": {
+    "wild": "haven:entity/wolf/lion",
+    "tame": "haven:entity/wolf/lion",
+    "angry": "haven:entity/wolf/lion"
+  },
+  "baby_assets": {
+    "wild": "haven:entity/wolf/lion",
+    "tame": "haven:entity/wolf/lion",
+    "angry": "haven:entity/wolf/lion"
+  },
+  "spawn_conditions": []
+}

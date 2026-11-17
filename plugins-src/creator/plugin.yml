@@ -2,6 +2,9 @@ name: Creator
 version: 2.0.0
 main: dev.etnan.creator.Creator
 api-version: "26.1"
+loadbefore: [Multiverse-Core]
+libraries:
+  - org.jetbrains.kotlin:kotlin-stdlib:2.4.21
 description: Crafting stations anywhere, powers, storage, metal detector, magic wand, Big Bench super tools, golden chicken and more
 permissions:
   creator.craft:

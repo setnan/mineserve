@@ -49,7 +49,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  * The look is the chicken variant supermann:golden from the supermann datapack (no natural spawns) with textures
  * from golden_chicken_pack.py; without them it is a normal chicken that sparkles.
  */
-final class GoldenChicken implements Listener {
+public final class GoldenChicken implements Listener {
     private static final double NATURAL_CHANCE = 0.02;
     private final NamespacedKey tag, eggTag, featherTag, smeltKey, blastKey, blockKey, shedKey, foodTag, soupKey;
     static final int BOOST_SECS = 300, SOUP_SECS = 300;

@@ -1,0 +1,146 @@
+{
+  "attributes": {
+    "minecraft:audio/background_music": {
+      "default": {
+        "sound": "minecraft:music.creative",
+        "min_delay": 3600,
+        "max_delay": 9600
+      }
+    },
+    "minecraft:gameplay/increased_fire_burnout": true,
+    "minecraft:gameplay/natural_mob_spawns": {
+      "argument": {
+        "spawn_costs": {},
+        "spawns_by_category": {
+          "creature": [
+            {
+              "type": "minecraft:frog",
+              "count": {
+                "type": "minecraft:uniform",
+                "max_inclusive": 5,
+                "min_inclusive": 2
+              },
+              "weight": 10
+            }
+          ],
+          "water_ambient": [
+            {
+              "type": "minecraft:tropical_fish",
+              "count": 8,
+              "weight": 25
+            },
+            {
+              "type": "minecraft:pufferfish",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 3
+              },
+              "weight": 5
+            }
+          ],
+          "water_creature": [
+            {
+              "type": "minecraft:dolphin",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 2
+              },
+              "weight": 2
+            },
+            {
+              "type": "minecraft:squid",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 4
+              },
+              "weight": 1
+            }
+          ],
+          "axolotls": [
+            {
+              "type": "minecraft:axolotl",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 2,
+                "max_inclusive": 4
+              },
+              "weight": 10
+            }
+          ]
+        }
+      },
+      "modifier": "overlay"
+    },
+    "minecraft:visual/fog_color": "#c4e2ff",
+    "minecraft:visual/sky_color": "#a6d6ff",
+    "minecraft:visual/water_fog_color": "#19d3e0",
+    "minecraft:visual/water_fog_end_distance": {
+      "argument": 0.85,
+      "modifier": "multiply"
+    }
+  },
+  "carvers": [],
+  "downfall": 0.9,
+  "effects": {
+    "dry_foliage_color": "#7b5334",
+    "foliage_color": "#ff9a8a",
+    "grass_color_modifier": "swamp",
+    "water_color": "#19d3e0",
+    "grass_color": "#8fe39a"
+  },
+  "features": [
+    [],
+    [],
+    [
+      "minecraft:amethyst_geode"
+    ],
+    [],
+    [],
+    [],
+    [
+      "haven:ore_coal_upper_haven",
+      "haven:ore_coal_lower_haven",
+      "haven:ore_iron_upper_haven",
+      "haven:ore_iron_middle_haven",
+      "haven:ore_iron_small_haven",
+      "haven:ore_gold_haven",
+      "haven:ore_gold_lower_haven",
+      "haven:ore_redstone_haven",
+      "haven:ore_redstone_lower_haven",
+      "haven:ore_diamond_haven",
+      "haven:ore_diamond_medium_haven",
+      "haven:ore_diamond_large_haven",
+      "haven:ore_diamond_buried_haven",
+      "haven:ore_lapis_haven",
+      "haven:ore_lapis_buried_haven",
+      "haven:ore_copper_haven",
+      "minecraft:disk_grass",
+      "minecraft:disk_clay",
+      "haven:diamonds",
+      "haven:havenite_debris"
+    ],
+    [],
+    [
+      "haven:springs"
+    ],
+    [
+      "minecraft:glow_lichen",
+      "haven:trees_mangrove_oasis",
+      "minecraft:patch_grass_normal",
+      "minecraft:patch_dead_bush",
+      "minecraft:patch_waterlily",
+      "minecraft:seagrass_swamp",
+      "minecraft:patch_firefly_bush_near_water",
+      "minecraft:warm_ocean_vegetation",
+      "minecraft:seagrass_warm",
+      "minecraft:sea_pickle",
+      "minecraft:kelp_warm"
+    ],
+    []
+  ],
+  "has_precipitation": false,
+  "temperature": 0.8
+}

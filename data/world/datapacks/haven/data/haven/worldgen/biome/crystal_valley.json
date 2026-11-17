@@ -1,0 +1,157 @@
+{
+  "attributes": {
+    "minecraft:audio/background_music": {
+      "default": {
+        "sound": "minecraft:music.creative",
+        "min_delay": 3600,
+        "max_delay": 9600
+      }
+    },
+    "minecraft:gameplay/natural_mob_spawns": {
+      "argument": {
+        "spawn_costs": {},
+        "spawns_by_category": {
+          "creature": [
+            {
+              "type": "minecraft:donkey",
+              "count": {
+                "type": "minecraft:uniform",
+                "max_inclusive": 2,
+                "min_inclusive": 1
+              },
+              "weight": 1
+            },
+            {
+              "type": "minecraft:rabbit",
+              "count": {
+                "type": "minecraft:uniform",
+                "max_inclusive": 6,
+                "min_inclusive": 2
+              },
+              "weight": 2
+            },
+            {
+              "type": "minecraft:sheep",
+              "count": {
+                "type": "minecraft:uniform",
+                "max_inclusive": 4,
+                "min_inclusive": 2
+              },
+              "weight": 2
+            }
+          ],
+          "water_creature": [
+            {
+              "type": "minecraft:dolphin",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 2
+              },
+              "weight": 2
+            },
+            {
+              "type": "minecraft:squid",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 4
+              },
+              "weight": 1
+            }
+          ],
+          "water_ambient": [
+            {
+              "type": "minecraft:tropical_fish",
+              "count": 8,
+              "weight": 25
+            },
+            {
+              "type": "minecraft:pufferfish",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 3
+              },
+              "weight": 5
+            }
+          ],
+          "axolotls": [
+            {
+              "type": "minecraft:axolotl",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 2,
+                "max_inclusive": 4
+              },
+              "weight": 10
+            }
+          ]
+        }
+      },
+      "modifier": "overlay"
+    },
+    "minecraft:visual/sky_color": "#a6d6ff",
+    "minecraft:visual/fog_color": "#c4e2ff",
+    "minecraft:visual/water_fog_color": "#2aa7ff"
+  },
+  "carvers": [],
+  "downfall": 0.8,
+  "effects": {
+    "water_color": "#2aa7ff",
+    "grass_color": "#a6e8c8",
+    "foliage_color": "#bfe8d8"
+  },
+  "features": [
+    [],
+    [],
+    [
+      "minecraft:amethyst_geode"
+    ],
+    [],
+    [],
+    [],
+    [
+      "haven:ore_coal_upper_haven",
+      "haven:ore_coal_lower_haven",
+      "haven:ore_iron_upper_haven",
+      "haven:ore_iron_middle_haven",
+      "haven:ore_iron_small_haven",
+      "haven:ore_gold_haven",
+      "haven:ore_gold_lower_haven",
+      "haven:ore_redstone_haven",
+      "haven:ore_redstone_lower_haven",
+      "haven:ore_diamond_haven",
+      "haven:ore_diamond_medium_haven",
+      "haven:ore_diamond_large_haven",
+      "haven:ore_diamond_buried_haven",
+      "haven:ore_lapis_haven",
+      "haven:ore_lapis_buried_haven",
+      "haven:ore_copper_haven",
+      "minecraft:disk_sand",
+      "minecraft:disk_clay",
+      "minecraft:disk_gravel",
+      "haven:ore_emerald_haven",
+      "haven:diamonds",
+      "haven:havenite_debris"
+    ],
+    [],
+    [
+      "haven:springs"
+    ],
+    [
+      "minecraft:glow_lichen",
+      "minecraft:patch_tall_grass_2",
+      "minecraft:patch_grass_meadow",
+      "minecraft:flower_meadow",
+      "minecraft:wildflowers_meadow",
+      "minecraft:warm_ocean_vegetation",
+      "minecraft:seagrass_warm",
+      "minecraft:sea_pickle",
+      "minecraft:kelp_warm"
+    ],
+    []
+  ],
+  "has_precipitation": false,
+  "temperature": 0.8
+}

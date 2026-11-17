@@ -1,0 +1,156 @@
+{
+  "attributes": {
+    "minecraft:audio/background_music": {
+      "default": {
+        "sound": "minecraft:music.overworld.meadow",
+        "min_delay": 3600,
+        "max_delay": 9600
+      }
+    },
+    "minecraft:gameplay/natural_mob_spawns": {
+      "argument": {
+        "spawn_costs": {},
+        "spawns_by_category": {
+          "creature": [
+            {
+              "type": "minecraft:sheep",
+              "count": 4,
+              "weight": 12
+            },
+            {
+              "type": "minecraft:pig",
+              "count": 4,
+              "weight": 10
+            },
+            {
+              "type": "minecraft:chicken",
+              "count": 4,
+              "weight": 10
+            },
+            {
+              "type": "minecraft:cow",
+              "count": 4,
+              "weight": 8
+            }
+          ],
+          "water_creature": [
+            {
+              "type": "minecraft:dolphin",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 2
+              },
+              "weight": 2
+            },
+            {
+              "type": "minecraft:squid",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 4
+              },
+              "weight": 1
+            }
+          ],
+          "water_ambient": [
+            {
+              "type": "minecraft:tropical_fish",
+              "count": 8,
+              "weight": 25
+            },
+            {
+              "type": "minecraft:pufferfish",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 1,
+                "max_inclusive": 3
+              },
+              "weight": 5
+            }
+          ],
+          "axolotls": [
+            {
+              "type": "minecraft:axolotl",
+              "count": {
+                "type": "minecraft:uniform",
+                "min_inclusive": 2,
+                "max_inclusive": 4
+              },
+              "weight": 10
+            }
+          ]
+        }
+      },
+      "modifier": "overlay"
+    },
+    "minecraft:visual/sky_color": "#a6d6ff",
+    "minecraft:visual/fog_color": "#c4e2ff",
+    "minecraft:visual/water_fog_color": "#2aa7ff"
+  },
+  "carvers": [],
+  "downfall": 0.6,
+  "effects": {
+    "water_color": "#2aa7ff",
+    "grass_color": "#9fe39a",
+    "foliage_color": "#d9e6e0"
+  },
+  "features": [
+    [],
+    [],
+    [
+      "minecraft:amethyst_geode"
+    ],
+    [],
+    [],
+    [],
+    [
+      "haven:ore_coal_upper_haven",
+      "haven:ore_coal_lower_haven",
+      "haven:ore_iron_upper_haven",
+      "haven:ore_iron_middle_haven",
+      "haven:ore_iron_small_haven",
+      "haven:ore_gold_haven",
+      "haven:ore_gold_lower_haven",
+      "haven:ore_redstone_haven",
+      "haven:ore_redstone_lower_haven",
+      "haven:ore_diamond_haven",
+      "haven:ore_diamond_medium_haven",
+      "haven:ore_diamond_large_haven",
+      "haven:ore_diamond_buried_haven",
+      "haven:ore_lapis_haven",
+      "haven:ore_lapis_buried_haven",
+      "haven:ore_copper_haven",
+      "minecraft:disk_sand",
+      "minecraft:disk_clay",
+      "minecraft:disk_gravel",
+      "haven:diamonds",
+      "haven:havenite_debris"
+    ],
+    [],
+    [
+      "haven:springs"
+    ],
+    [
+      "minecraft:glow_lichen",
+      "minecraft:forest_flowers",
+      "minecraft:wildflowers_birch_forest",
+      "haven:trees_birch_silver",
+      "minecraft:patch_bush",
+      "minecraft:flower_default",
+      "minecraft:patch_grass_forest",
+      "minecraft:brown_mushroom_normal",
+      "minecraft:red_mushroom_normal",
+      "minecraft:patch_pumpkin",
+      "minecraft:patch_sugar_cane",
+      "minecraft:patch_firefly_bush_near_water",
+      "minecraft:warm_ocean_vegetation",
+      "minecraft:seagrass_warm",
+      "minecraft:sea_pickle",
+      "minecraft:kelp_warm"
+    ],
+    []
+  ],
+  "has_precipitation": false,
+  "temperature": 0.8
+}

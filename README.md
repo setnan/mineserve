@@ -61,6 +61,54 @@ building in progress survives a server restart.
 From the terminal: `./mc.sh helper <words>` (yours), `./mc.sh helpers <words>` (all of them),
 `./mc.sh helper status|pause|resume`.
 
+## Haven
+
+A dimension of floating islands over an azure sea, with waterfalls everywhere, no monsters, no hunger and no night:
+the sun dips into a sunset and comes back up. Everything grows twice as fast there. Eleven biomes (dawn grove, silver birch, cloud jungle, oasis, glory peaks, golden savanna, golden
+forest, golden plains, flower meadow, crystal valley, rainbow falls) with their own trees and colours. The biomes are
+in the datapack `data/world/datapacks/haven`, generated from the vanilla files in the server jar by
+`plugins-src/haven/gen.py`; run it again after a Minecraft update.
+
+Every world has its own Haven, the way it has its own nether and end: `<world>_haven` (`world_haven`,
+`hope_haven`, ...). The Creator plugin makes it the first time the world is loaded, also for worlds created later,
+gives it a random seed of its own (kept in `plugins/Creator/haven-worlds.yml`) and puts it in the
+Multiverse-Inventories group of its world, so you keep your inventory. The land comes from `HavenGenerator.kt`
+(floating islands over an azure sea). The earth is not the overworld's: grass on moss instead of dirt, pearl-white
+calcite with diorite veins and raw gold inside, an azure prismarine underside with sea lanterns, sand and prismarine
+on the sea floor, and each biome its own top (bare calcite and gold on the glory peaks, amethyst in the crystal
+valley, sand on the golden plains, mud at the oases, honeycomb under the golden forest). The biomes, trees and ores
+come from the datapack; the ores also grow in calcite (`haven:ore_replaceables`). Time stands still and the plugin
+swings the sun between noon and a sunset or sunrise glow; random tick speed 6 makes things grow twice as fast.
+Haven worlds are not in Multiverse-Core's `worlds.yml`; the plugin loads them.
+
+Every world family (the world, its nether, end and Haven) has one Multiverse-Inventories group and shares
+everything inside it, never with another family. A world without a group gets its own, named after it, the first
+time it loads; a nether or end made later joins its world's group. New worlds always get lower-case names
+(`/new Skog`, `mv create Skog normal` and `./mc.sh new-world Skog` all make `skog`); existing worlds keep theirs.
+
+To get there, build a frame of shroomlight shaped like a nether portal and pour a bucket of water into it. Stand in
+the azure portal for a second. One block in Haven is 16 blocks back home, and you return to the world you came
+from. Operators have `/haven` (list), `/haven portal <world> <x> <z>`, `/haven close <n>` and
+`/haven go [player]`.
+
+What is there (the Kotlin classes `Haven*.kt` in the Creator plugin):
+
+| | |
+|---|---|
+| Ores | diamond ore is common and drops diamond shards (9 = a diamond); havenite debris (azure chiseled copper) deep in the islands drops havenite scrap (4 scrap + 4 gold = havenite ingot); amethyst gives light crystals; pearlescent froglight in the peaks is nacre |
+| Havenite armor | ingot + diamond piece on the smithing table. Helmet: long breath. Chestplate: elytra wings. Leggings: step up, faster, dolphin swim. Boots: no fall damage. Full set: sneak + jump to soar, once per landing |
+| Light crystals | on the smithing table onto armor (light around you), sword (more against undead), shield (flash), bow (arrows leave light), fishing rod, horse armor, elytra |
+| Pearls | from clams (sea pickles) and fishing; very rarely a time pearl: right click, everything within 16 blocks stands still for 10 s (only monsters outside Haven, never players) |
+| Golden barley | wheat in Haven, twice the harvest; the seeds keep that at home. Barley fields on the golden plains |
+| Nacre | placed at home: no monsters spawn within 16 blocks |
+| Golden Ram's Horn | one of Haven's rarest treasures (1 in 40 temple chests, 1 in 25 of the best wishes at the well). Blown in the overworld: the Lion comes out of a burst of gold and fights for you (pounces, heavy golden blows, bosses take it but are not felled at once) until every enemy within 40 blocks is gone, then bows its head and goes (at most 5 minutes; the horn can call it every 5 minutes). Blown in the nether or the end: the ground shakes in three waves and every enemy within 20 blocks is flung back several blocks (once a minute). Nothing in Haven. `/the_lion horn [player]` gives one |
+| Music | C418's creative music in the open golden lands (golden plains and savanna, glory peaks, crystal valley, oasis), the cherry grove music in dawn grove and rainbow falls, the meadow music in flower meadows and silver birch, flower forest music in the golden forest, jungle music in the cloud jungle; 3 to 8 minutes between pieces. Motifs on note block sounds (`HavenMusic.kt`): arriving through a portal, a wish at the well, coming near a temple (once in ten minutes), the Lion appearing and the Lion arriving where it wanted to take you |
+| Creatures | Haven is the home of the allays (in new land, most in the flower meadows and dawn groves, and a few more drift in around players now and then); golden chickens; winged horses (tame with 6–12 golden apples, jump to fly); the wand in Haven: no hostile, no fire, nothing at all on the Lion, and no disarm, ride or fetch on angels and builders (big, small and lift are fine); angels (men and women in white and gold armor with gold crowns or circlets, blond most often but also brown, black or red hair, white gold-edged wings; drawn by `plugins-src/haven/angels.py` into the pack, then `python3 heads.py`; trade only for diamonds, cannot be hurt, warn once and strike on the second blow within 30 s, never against full havenite); builders (small flying craftsmen in a white work uniform with azure or green lines, gold buttons, a leather pouch on the left hip, a gold hammer on the back slung at 45 degrees, no cap, brown, blond or grey hair; drawn by `plugins-src/haven/builders.py` who put up Santorini-style buildings near players, "poff" when hit); sky birds around players (golden shoals, manta birds, rare sky whales, dolphin swallows when you fly); the Lion (one per Haven, now and then near a player; cannot be tamed or hurt; cares for players and has a bond with helpers; on the wolf's body (broad, deep upper body) at 3.6 times normal size, about three blocks tall, with its own tawny gold coat, a majestic golden mane, golden brows and deep dark blue eyes (wolf variant `haven:lion`, coat drawn by `plugins-src/haven/lion.py`, `render3d.py` shows it in 3D); it glints faintly with gold and carries a soft light; its size follows the room it has (full size in the open, down to about a block where it is tight, so it comes through anywhere), and it leaps up to 64 blocks far and 48 up, rising fast and gliding down slowly and gracefully: stand on a block and right click to ride, or stroke it (sneak + right click) and it sits down so you can climb on from the ground; your helper comes along: riding heals you, mends your armor and what you hold and gives experience slowly; it comes to show you something: it stays near you for a minute or so, then leads the way there, waiting when you fall behind (or ride it, and it carries you, leaping onto high islands); once you have seen the place it is gone when you look away, never before; `/the_lion [player]` brings it) |
+| Magic | levitation columns (a golden chicken in one anchors it), time rifts to fixed safe spots, the wishing well (gift for a blessing, once a game day; fall in for a cloud ride), gold water (armor to gold, deadly), havenite springs (every armor piece you wear to havenite), a rainbow that points to the nearest spring, speed and jump in the spray at the rainbow falls, angel temples with treasure |
+
+Places and claimed land are kept in `plugins/Creator/haven-places.yml` and `haven-land.yml`. New land is decorated
+the first time a chunk loads, so the area that existed before an update does not get it.
+
 ## supermann datapack
 
 In `data/world/datapacks/supermann`: `/tunnel`, `/icetunnel`, `/glassbridge`, `/staircase`, `/staircase_up`,
@@ -100,7 +148,8 @@ from your local Minecraft client. `heads.py` adds the player heads and builds
 | `mc.sh` | Day-to-day commands. `./mc.sh` lists them |
 | `skins.py` | Imports skins from `skins/` (resource pack for helpers, mineskin.org signing for players) |
 | `chatbro.py`, `service/` | The chat bridge, and service files to run it in the background (launchd / systemd) |
-| `plugins-src/creator/` | The Creator plugin. `build.sh` compiles it in a JDK container |
+| `plugins-src/creator/` | The Creator plugin, Java and Kotlin. `build.sh` builds it with Gradle in a JDK container |
+| `plugins-src/haven/` | `gen.py` writes the Haven datapack |
 | `plugins-src/creator/supers/` | The five built-in super tools |
 | `data/world/datapacks/supermann/` | The datapack |
 | `aliases.yml` | Command aliases. `./mc.sh sync-aliases` (runs on every start) turns it, `data/aliases-local.yml`, the `build_…` catalog and one `/<world>` alias per Multiverse world into `data/commands.yml` |

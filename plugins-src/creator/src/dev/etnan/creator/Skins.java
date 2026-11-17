@@ -44,7 +44,7 @@ import org.bukkit.profile.PlayerTextures;
  * /sendpack                      (op/console) sends the current resource pack to everyone online, so a new
  *                                skin or item look shows up without a restart
  */
-final class Skins implements Listener {
+public final class Skins implements Listener {
     private final JavaPlugin plugin;
     private final File dir, stateFile;
     private final YamlConfiguration state;

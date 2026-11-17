@@ -162,7 +162,7 @@ case "${1:-}" in
 
   # --- worlds (Multiverse) ---
   new-world)    # ./mc.sh new-world <name> [normal|nether|the_end] [--seed 123 --world-type flat ...]
-                name="${2:?usage: ./mc.sh new-world <name> [environment] [flags]}"; env="${3:-normal}"
+                name="$(printf %s "${2:?usage: ./mc.sh new-world <name> [environment] [flags]}" | tr "[:upper:]" "[:lower:]")"; env="${3:-normal}"   # world names are lower case
                 shift $(( $# < 3 ? $# : 3 )); rcon mv create "$name" "$env" "$@" ;;
   worlds)       rcon mv list ;;
   sync-aliases) sync_aliases; echo "Updated data/commands.yml (takes effect on ./mc.sh restart) and superworlds.mcfunction (/reload)." ;;

@@ -29,6 +29,11 @@
 !/plugins-src/creator/
 /plugins-src/creator/out/
 /plugins-src/creator/*.jar
+/plugins-src/creator/.gradle/
+/plugins-src/creator/.kotlin/
+/plugins-src/creator/build/
+# Haven datapack generator (writes data/world/datapacks/haven)
+!/plugins-src/haven/
 
 # The supermann datapack and the command aliases, nothing else from the server data folder
 !/data/
@@ -38,6 +43,7 @@
 !/data/world/datapacks/
 /data/world/datapacks/*
 !/data/world/datapacks/supermann/
+!/data/world/datapacks/haven/
 
 # Saved worlds go in worlds/ but are not committed
 !/worlds/
