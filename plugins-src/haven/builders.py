@@ -1,7 +1,8 @@
 """
 Draws the Haven builders: little craftsmen in a white work uniform (a jacket with a coloured collar, gold buttons and a
 belt with a gold buckle, light trousers with a stripe, brown leather boots), a leather pouch on the left hip, a gold
-hammer on the back and short hair, no cap. Accent azure or green; hair brown, blond or grey.
+hammer on the back and short hair, no cap. Accent azure or green; hair brown, blond or grey. The sea builders wear the
+same cut in bright azure or green (builder_seaazure_*, builder_seagreen_*).
 Writes builder_<accent>_<hair>.png into resourcepack-extra; run heads.py afterwards to rebuild the pack.
 
     python3 plugins-src/haven/builders.py [preview-folder] [--styles]
@@ -122,10 +123,21 @@ def uniform(im, accent):
             elif 0.7 < u <= 7.4 and abs(v) <= 0.55: c = LEATHER if u > 5.6 else GOLD_D
             if c: im.putpixel((32 + x, 36 + y), c)
 
-def builder(accent, hair, style="hair"):
+# The sea builders: the same craftsmen in a bright suit for the water, azure with green lines or green with azure lines,
+# and dark sea boots.
+SEA = {"seaazure": dict(CLOTH=(40, 200, 255, 255), CLOTH_D=(26, 168, 232, 255), CLOTH_DD=(16, 136, 204, 255), TROUSER=(34, 186, 246, 255),
+                        TROUSER_D=(22, 150, 216, 255), accent=((110, 255, 170, 255), (60, 220, 130, 255))),
+       "seagreen": dict(CLOTH=(70, 240, 150, 255), CLOTH_D=(46, 208, 124, 255), CLOTH_DD=(30, 172, 100, 255), TROUSER=(60, 226, 140, 255),
+                        TROUSER_D=(40, 190, 112, 255), accent=((90, 220, 255, 255), (40, 176, 232, 255)))}
+SEA_BOOTS = dict(LEATHER=(24, 96, 120, 255), LEATHER_D=(14, 70, 92, 255), LEATHER_H=(40, 130, 156, 255))
+
+def builder(accent, hair, style="hair", suit=None):
     im = Image.new("RGBA", (64, 64), CLEAR)
     head(im, style, accent, hair)
-    uniform(im, accent)
+    old = {k: globals()[k] for k in ("CLOTH", "CLOTH_D", "CLOTH_DD", "TROUSER", "TROUSER_D", "LEATHER", "LEATHER_D", "LEATHER_H")}
+    if suit: globals().update({k: v for k, v in suit.items() if k != "accent"}, **SEA_BOOTS)
+    try: uniform(im, accent)
+    finally: globals().update(old)
     return im
 
 def preview_fn():
@@ -141,6 +153,9 @@ made = []
 for a, ac in ACCENTS.items():
     for h in HAIR:
         builder(ac, h).save(f"{SKINS}/builder_{a}_{h}.png"); made.append((a, h))
+for a, suit in SEA.items():
+    for h in HAIR:
+        builder(suit["accent"], h, suit=suit).save(f"{SKINS}/builder_{a}_{h}.png")
 if OUT:
     preview = preview_fn()
     big = Image.new("RGBA", (452 * 3 + 20, 440 * 2), (24, 28, 40, 255))

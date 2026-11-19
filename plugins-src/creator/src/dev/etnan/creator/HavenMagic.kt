@@ -81,8 +81,7 @@ class HavenMagic(private val items: HavenItems, private val armor: HavenArmor) :
 
     fun makeRift(w: World, x: Int, z: Int): Boolean {
         val g = Haven.ground(w, x, z) ?: return false
-        val p = Place(w.name, "rift", x, g.y + 2, z)
-        retarget(w, p)
+        val p = Place(w.name, "rift", x, g.y + 2, z)      // where it leads is found the first time someone steps in
         add(p)
         return true
     }
@@ -107,7 +106,7 @@ class HavenMagic(private val items: HavenItems, private val armor: HavenArmor) :
             for (k in 2..5) if (!(abs(i) == 2 && abs(j) == 2)) w.getBlockAt(x + i, y + k, z + j).type = Material.AIR
         }
         for ((i, j) in listOf(-2 to -2, 2 to -2, -2 to 2, 2 to 2)) for (k in 2..4) w.getBlockAt(x + i, y + k, z + j).type = Material.QUARTZ_PILLAR
-        for (i in -2..2) for (j in -2..2) w.getBlockAt(x + i, y + 5, z + j).type = if (abs(i) == 2 || abs(j) == 2) Material.GOLD_BLOCK else Material.LIGHT_BLUE_STAINED_GLASS
+        for (i in -2..2) for (j in -2..2) w.getBlockAt(x + i, y + 5, z + j).type = if (abs(i) == 2 && abs(j) == 2) Material.GOLD_BLOCK else if (abs(i) == 2 || abs(j) == 2) Material.QUARTZ_BRICKS else Material.LIGHT_BLUE_STAINED_GLASS
         w.getBlockAt(x, y + 4, z).type = Material.IRON_CHAIN
         w.getBlockAt(x, y + 3, z).type = Material.LANTERN
         add(Place(w.name, "well", x, y, z))
@@ -121,8 +120,8 @@ class HavenMagic(private val items: HavenItems, private val armor: HavenArmor) :
         for (i in -r - 1..r + 1) for (j in -r - 1..r + 1) {
             val inside = i * i + j * j <= r * r
             val rim = !inside && i * i + j * j <= (r + 1) * (r + 1) + 1
-            if (inside) { w.getBlockAt(x + i, y, z + j).type = Material.WATER; w.getBlockAt(x + i, y - 1, z + j).type = if (type == "gold") Material.GOLD_BLOCK else Material.PRISMARINE_BRICKS }
-            else if (rim) w.getBlockAt(x + i, y, z + j).type = if (type == "gold") Material.RAW_GOLD_BLOCK else Material.WAXED_OXIDIZED_CUT_COPPER
+            if (inside) { w.getBlockAt(x + i, y, z + j).type = Material.WATER; w.getBlockAt(x + i, y - 1, z + j).type = if (type != "gold") Material.PRISMARINE_BRICKS else if (i == 0 && j == 0) Material.GOLD_BLOCK else Material.HONEYCOMB_BLOCK }
+            else if (rim) w.getBlockAt(x + i, y, z + j).type = if (type == "gold") Material.CUT_SANDSTONE else Material.WAXED_OXIDIZED_CUT_COPPER
             for (k in 1..3) if (inside || rim) w.getBlockAt(x + i, y + k, z + j).let { if (!it.type.isAir && !it.type.name.endsWith("_LEAVES")) it.type = Material.AIR }
         }
         add(Place(w.name, type, x, y, z, height = r))

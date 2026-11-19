@@ -51,7 +51,9 @@ import org.bukkit.persistence.PersistentDataType
  * Clams (sea pickles on the sea floor) and fishing give pearls, and very rarely an azure time pearl. Wheat there is
  * golden barley with twice the harvest, also when its seeds are planted at home. Pearlescent froglight from the
  * mountains is nacre: placed at home it shines and no monsters spawn within 16 blocks. Dawn and silver birch saplings
- * grow Haven trees anywhere.
+ * grow Haven trees anywhere. Sea fruit (the turquoise warped wart blocks on the sea floor) and glow fruit (the light
+ * green verdant froglights in the caves) are eaten: see HavenFruit. Glowstone in the rock gives star dust, and star dust
+ * and light crystals make starstone for teleportals (Teleportals). The sheep give magic wool for flying carpets (HavenCarpet).
  */
 class HavenItems : Listener {
 
@@ -70,6 +72,12 @@ class HavenItems : Listener {
         NACRE(Material.PEARLESCENT_FROGLIGHT, "Nacre", NamedTextColor.WHITE, "Shines, and no monsters spawn within 16 blocks of it"),
         DAWN_SAPLING(Material.CHERRY_SAPLING, "Dawn Sapling", NamedTextColor.LIGHT_PURPLE, "Grows a pearl-white dawn tree"),
         SILVER_SAPLING(Material.BIRCH_SAPLING, "Silver Birch Sapling", NamedTextColor.GRAY, "Grows a birch with silver leaves"),
+        SEA_FRUIT(Material.APPLE, "Sea Fruit", NamedTextColor.AQUA, "Eat it: you are tiny for a minute\nSneak and right click the bottom of a sea or lake to plant it", "minecraft:blue_egg"),
+        GLOW_FRUIT(Material.APPLE, "Glow Fruit", NamedTextColor.GREEN, "Eat it: you grow huge for a minute\nSneak and right click moss or earth in the dark to plant it", "minecraft:slime_ball"),
+        STAR_DUST(Material.GLOWSTONE_DUST, "Star Dust", NamedTextColor.YELLOW, "Five of these and four light crystals make two starstones"),
+        STARSTONE(Material.OCHRE_FROGLIGHT, "Starstone", NamedTextColor.YELLOW, "Build a portal frame of it and pour lava into it: a teleportal\nA world has two, and you walk from one to the other"),
+        MAGIC_WOOL(Material.WHITE_WOOL, "Magic Wool", NamedTextColor.LIGHT_PURPLE, "Wool from the sheep of Haven: five and a light crystal make a flying carpet"),
+        FLYING_CARPET(Material.PURPLE_CARPET, "Flying Carpet", NamedTextColor.LIGHT_PURPLE, "Right click to sit on it and fly: it goes where you look\nJump to rise, sneak to step off"),
         GOLDEN_RAMSHORN(Material.GOAT_HORN, "Golden Ram's Horn", NamedTextColor.GOLD, "Overworld: the Lion comes and fights for you until every enemy is gone. Nether and End: the ground shakes and enemies are flung back"),
     }
 
@@ -82,11 +90,13 @@ class HavenItems : Listener {
         val it = ItemStack(k.base, n)
         it.editMeta { m ->
             m.itemName(Component.text(k.title, k.color))
-            m.lore(listOf(Component.text(k.lore, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)))
+            m.lore(k.lore.split('\n').map { Component.text(it, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false) })
             m.persistentDataContainer.set(kindKey, PersistentDataType.STRING, k.name)
         }
         if (k.model != null) it.setData(DataComponentTypes.ITEM_MODEL, Key.key(k.model))
-        if (k == Kind.TIME_PEARL || k == Kind.LIGHT_CRYSTAL || k == Kind.GOLDEN_RAMSHORN) it.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true)
+        if (k == Kind.TIME_PEARL || k == Kind.LIGHT_CRYSTAL || k == Kind.GOLDEN_RAMSHORN || k == Kind.MAGIC_WOOL || k == Kind.FLYING_CARPET) it.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true)
+        if (k == Kind.SEA_FRUIT || k == Kind.GLOW_FRUIT)          // a bite of fruit, also when you are not hungry
+            it.setData(DataComponentTypes.FOOD, io.papermc.paper.datacomponent.item.FoodProperties.food().nutrition(2).saturation(1.2f).canAlwaysEat(true).build())
         if (k == Kind.GOLDEN_RAMSHORN) it.setData(DataComponentTypes.RARITY, org.bukkit.inventory.ItemRarity.EPIC)
         return it
     }
@@ -114,6 +124,10 @@ class HavenItems : Listener {
         add(ShapelessRecipe(Haven.key("barley_seeds"), make(Kind.BARLEY_SEEDS, 2)).addIngredient(RecipeChoice.ExactChoice(make(Kind.GOLDEN_BARLEY))), "barley_seeds")
         add(ShapelessRecipe(Haven.key("barley_bread"), ItemStack(Material.BREAD, 2)).apply {
             repeat(3) { addIngredient(RecipeChoice.ExactChoice(make(Kind.GOLDEN_BARLEY))) } }, "barley_bread")
+        add(ShapedRecipe(Haven.key("starstone"), make(Kind.STARSTONE, 2)).shape("dcd", "cdc", "dcd")
+            .setIngredient('d', RecipeChoice.ExactChoice(make(Kind.STAR_DUST))).setIngredient('c', RecipeChoice.ExactChoice(make(Kind.LIGHT_CRYSTAL))), "starstone")
+        add(ShapedRecipe(Haven.key("flying_carpet"), make(Kind.FLYING_CARPET)).shape("www", "wcw")
+            .setIngredient('w', RecipeChoice.ExactChoice(make(Kind.MAGIC_WOOL))).setIngredient('c', RecipeChoice.ExactChoice(make(Kind.LIGHT_CRYSTAL))), "flying_carpet")
         val diamondArmor = listOf(Material.DIAMOND_HELMET, Material.DIAMOND_CHESTPLATE, Material.DIAMOND_LEGGINGS, Material.DIAMOND_BOOTS)
         add(SmithingTransformRecipe(Haven.key("havenite_armor"), ItemStack(Material.NETHERITE_CHESTPLATE), RecipeChoice.empty(),
             RecipeChoice.MaterialChoice(diamondArmor), RecipeChoice.ExactChoice(make(Kind.HAVENITE_INGOT)), true), "havenite_armor")
@@ -219,6 +233,10 @@ class HavenItems : Listener {
                 drop(b, make(Kind.BARLEY_SEEDS, 1 + if (ripe) Haven.rnd.nextInt(3) else 0))
                 if (ripe) drop(b, make(Kind.GOLDEN_BARLEY, 2))
             }
+            (haven || marked == "seafruit") && b.type == Material.WARPED_WART_BLOCK -> { e.isDropItems = false; drop(b, make(Kind.SEA_FRUIT, 1 + Haven.rnd.nextInt(3))) }
+            (haven || marked == "glowfruit") && b.type == Material.VERDANT_FROGLIGHT -> { e.isDropItems = false; drop(b, make(Kind.GLOW_FRUIT, 1 + Haven.rnd.nextInt(3))) }
+            marked == "gate" && b.type == Material.OCHRE_FROGLIGHT -> { e.isDropItems = false; if (e.player.gameMode != org.bukkit.GameMode.CREATIVE) drop(b, make(Kind.STARSTONE)) }
+            haven && b.type == Material.GLOWSTONE && e.player.gameMode != org.bukkit.GameMode.CREATIVE -> { e.isDropItems = false; drop(b, make(Kind.STAR_DUST, 1 + Haven.rnd.nextInt(3 + fortune))) }
             haven && b.type == Material.PEARLESCENT_FROGLIGHT -> { e.isDropItems = false; drop(b, make(Kind.NACRE)) }
             marked == "nacre" -> { e.isDropItems = false; drop(b, make(Kind.NACRE)) }
         }
@@ -248,7 +266,7 @@ class HavenItems : Listener {
 
     fun plantAt(b: Block): String? = list(b)[pos(b)]
     private fun forget(b: Block) { val m = list(b); if (m.remove(pos(b)) != null) store(b, m) }
-    private fun remember(b: Block, what: String) { val m = list(b); m[pos(b)] = what; store(b, m) }
+    fun remember(b: Block, what: String) { val m = list(b); m[pos(b)] = what; store(b, m) }
 
     @EventHandler(ignoreCancelled = true)
     fun onPlace(e: BlockPlaceEvent) {
@@ -257,6 +275,7 @@ class HavenItems : Listener {
             Kind.DAWN_SAPLING -> remember(e.blockPlaced, "dawn")
             Kind.SILVER_SAPLING -> remember(e.blockPlaced, "silver")
             Kind.NACRE -> if (!Haven.isHaven(e.blockPlaced.world)) remember(e.blockPlaced, "nacre")
+            Kind.STARSTONE -> remember(e.blockPlaced, "gate")
             null -> {}
             else -> if (e.itemInHand.type.isBlock) { e.isCancelled = true }     // pearls and such are not blocks to set down
         }

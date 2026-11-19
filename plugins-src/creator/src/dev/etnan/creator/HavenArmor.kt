@@ -33,8 +33,8 @@ import java.util.UUID
  *
  * Havenite: the helmet lets you stay much longer under water, the chestplate has wings (glide like an elytra), the
  * leggings step up whole blocks, run faster and swim like a dolphin, and the boots let you drift down instead of
- * falling. The full set: sneak and jump to shoot high up and drift slowly down; once more only after you have
- * touched the ground. Light crystals: armor gives a warm light around you (more pieces, more light), a sword hurts
+ * falling. The full set: you jump about three blocks high, and sneak and jump shoots you high up to drift slowly
+ * down; once more only after you have touched the ground. Light crystals: armor gives a warm light around you (more pieces, more light), a sword hurts
  * the undead more, a shield flashes and dazzles monsters when it blocks, arrows shine and leave light where they
  * land, horse armor and elytra leave a golden trail.
  */
@@ -42,6 +42,8 @@ class HavenArmor(private val items: HavenItems) : Listener {
 
     private val stepKey = Haven.key("havenite_step")
     private val speedKey = Haven.key("havenite_speed")
+    private val jumpKey = Haven.key("havenite_jump")
+    private val told = mutableSetOf<UUID>()
     private val soaring = mutableSetOf<UUID>()
     private val lights = mutableMapOf<UUID, Block>()
     private val gold = Particle.DustOptions(Color.fromRGB(0xFF, 0xD7, 0x3A), 1.0f)
@@ -61,6 +63,11 @@ class HavenArmor(private val items: HavenItems) : Listener {
             val legs = items.isHavenite(inv.leggings)
             modifier(p, Attribute.STEP_HEIGHT, stepKey, if (legs) 0.5 else null)
             modifier(p, Attribute.MOVEMENT_SPEED, speedKey, if (legs) 0.1 else null, AttributeModifier.Operation.MULTIPLY_SCALAR_1)
+            // the full set: a much higher jump (and sneak + jump to soar, see onJump)
+            val full = fullSet(p)
+            modifier(p, Attribute.JUMP_STRENGTH, jumpKey, if (full) 0.3 else null)
+            if (!full) told.remove(p.uniqueId)
+            else if (told.add(p.uniqueId)) p.sendActionBar(net.kyori.adventure.text.Component.text("Full havenite: you jump high. Hold sneak and jump to soar.", net.kyori.adventure.text.format.NamedTextColor.AQUA))
             if (legs && p.isInWater) p.addPotionEffect(PotionEffect(PotionEffectType.DOLPHINS_GRACE, 40, 0, true, false))
             // boots: drift down instead of falling
             if (items.isHavenite(inv.boots) && p.fallDistance > 3 && !p.isGliding && !p.isFlying)
@@ -110,11 +117,25 @@ class HavenArmor(private val items: HavenItems) : Listener {
 
     @EventHandler
     fun onJump(e: PlayerJumpEvent) {
-        val p = e.player
-        if (!p.isSneaking || p.uniqueId in soaring || !fullSet(p)) return
+        if (e.player.isSneaking || e.player.currentInput.isSneak) soar(e.player)
+    }
+
+    /**
+     * The same from the keys themselves: sneak and jump held together while standing on the ground. The jump event
+     * alone did not always come (in the first test nobody with a full set could soar).
+     */
+    @EventHandler
+    fun onInput(e: org.bukkit.event.player.PlayerInputEvent) {
+        if (e.input.isJump && e.input.isSneak && (e.player as org.bukkit.entity.Entity).isOnGround) soar(e.player)
+    }
+
+    private fun soar(p: Player) {
+        if (p.uniqueId in soaring || !fullSet(p)) return
         soaring.add(p.uniqueId)
         Bukkit.getScheduler().runTask(Haven.plugin, Runnable {
-            p.velocity = p.location.direction.setY(0).normalize().multiply(0.6).setY(2.2)
+            val flat = p.location.direction.setY(0)                       // looking straight up or down: straight up
+            if (flat.lengthSquared() > 1e-4) flat.normalize().multiply(0.6)
+            p.velocity = flat.setY(2.2)
             p.addPotionEffect(PotionEffect(PotionEffectType.SLOW_FALLING, 200, 0, true, false))
         })
         p.world.playSound(p.location, Sound.ITEM_ELYTRA_FLYING, 0.6f, 1.6f)

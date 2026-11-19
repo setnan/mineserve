@@ -19,6 +19,9 @@ import kotlin.random.Random
  *   HavenPortals    shroomlight portals lit with water, 1 block in Haven = 16 at home
  *   HavenItems      diamond shards, havenite, light crystals, pearls, the time pearl, golden barley, nacre, saplings
  *   HavenArmor      what havenite armor and light crystals do
+ *   HavenFruit      sea fruit makes you tiny and glow fruit makes you a giant, for a minute; both can be planted
+ *   HavenCarpet     magic wool from the sheep, and the flying carpet made of it
+ *   Teleportals     starstone frames lit with lava: two in a world, and you walk from one to the other
  *   HavenWorld      the rules there (no hunger, healing water, blessing, golden chickens, flying horses) and what is
  *                   added to new chunks (clouds, floating stones, barley fields, crystals, clams, magic places)
  *   HavenMagic      levitation columns, time rifts, the wishing well, gold water, havenite springs, the rainbow, time pearls

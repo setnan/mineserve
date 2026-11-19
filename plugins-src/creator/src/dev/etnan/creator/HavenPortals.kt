@@ -106,10 +106,10 @@ class HavenPortals(private val plugin: JavaPlugin) : Listener {
         plugin.logger.info("${e.player.name} opened a Haven portal at ${p.key()}")
     }
 
-    private fun empty(b: Block) = b.type.isAir || b.type == Material.WATER || b.type == Material.LIGHT
+    fun empty(b: Block) = b.type.isAir || b.type == Material.WATER || b.type == Material.LIGHT
 
-    /** A finished shroomlight frame around this block, along X or Z, or null. */
-    private fun find(at: Block): Portal? {
+    /** A finished frame (of shroomlight, or of [frame]) around this block, along X or Z, or null. */
+    fun find(at: Block, frame: Material = Material.SHROOMLIGHT): Portal? {
         if (!empty(at)) return null
         for (alongX in listOf(true, false)) {
             val dx = if (alongX) 1 else 0
@@ -117,24 +117,24 @@ class HavenPortals(private val plugin: JavaPlugin) : Listener {
             var bottom = at
             var n = 0
             while (empty(bottom.getRelative(0, -1, 0)) && n++ < 21) bottom = bottom.getRelative(0, -1, 0)
-            if (bottom.getRelative(0, -1, 0).type != Material.SHROOMLIGHT) continue
+            if (bottom.getRelative(0, -1, 0).type != frame) continue
             var left = bottom
             n = 0
             while (empty(left.getRelative(-dx, 0, -dz)) && n++ < 21) left = left.getRelative(-dx, 0, -dz)
-            if (left.getRelative(-dx, 0, -dz).type != Material.SHROOMLIGHT) continue
+            if (left.getRelative(-dx, 0, -dz).type != frame) continue
             var width = 1
             while (width <= 21 && empty(left.getRelative(dx * width, 0, dz * width))) width++
-            if (left.getRelative(dx * width, 0, dz * width).type != Material.SHROOMLIGHT || width < 2 || width > 21) continue
+            if (left.getRelative(dx * width, 0, dz * width).type != frame || width < 2 || width > 21) continue
             var height = 0
             rows@ while (height < 22) {
                 val row = (0 until width).map { left.getRelative(dx * it, height, dz * it) }
-                if (row.all { it.type == Material.SHROOMLIGHT }) break@rows
+                if (row.all { it.type == frame }) break@rows
                 if (!row.all { empty(it) }) { height = -1; break@rows }
-                if (left.getRelative(-dx, height, -dz).type != Material.SHROOMLIGHT || left.getRelative(dx * width, height, dz * width).type != Material.SHROOMLIGHT) { height = -1; break@rows }
+                if (left.getRelative(-dx, height, -dz).type != frame || left.getRelative(dx * width, height, dz * width).type != frame) { height = -1; break@rows }
                 height++
             }
             if (height < 3 || height > 21) continue
-            if ((0 until width).any { left.getRelative(dx * it, -1, dz * it).type != Material.SHROOMLIGHT }) continue
+            if ((0 until width).any { left.getRelative(dx * it, -1, dz * it).type != frame }) continue
             return Portal(at.world.name, alongX, left.x, left.y, left.z, width, height)
         }
         return null
@@ -289,6 +289,7 @@ class HavenPortals(private val plugin: JavaPlugin) : Listener {
             }
             return null
         }
+        if (Haven.isHaven(w) && HavenGenerator.isletOver(w.seed, x, z)) return null      // on the land, not on an islet in the sky
         val b = w.getHighestBlockAt(x, z)
         return if (b.y <= w.minHeight + 1 || b.isLiquid) null else b
     }
@@ -296,7 +297,7 @@ class HavenPortals(private val plugin: JavaPlugin) : Listener {
     // --- /haven for operators ---------------------------------------------------------------------------
 
     fun register(r: Commands) {
-        r.register("haven", "Haven portals: list, portal <world|hope_haven> <x> <z>, close <n>, go [player]", object : BasicCommand {
+        r.register("haven", "Haven portals: list, portal <world|hope_haven> <x> <z>, close <n>, go [player], temple (builds one in front of you), fruit (gives you both fruits), kit (starstone, lava, a flying carpet), seabuilder (one where you stand)", object : BasicCommand {
             override fun permission() = "creator.haven"
             override fun execute(src: CommandSourceStack, args: Array<String>) {
                 val to = src.sender
@@ -312,6 +313,28 @@ class HavenPortals(private val plugin: JavaPlugin) : Listener {
                         Bukkit.getWorld(p.world)?.let { w -> for (i in -1..p.width) for (h in -1..p.height) (if (p.alongX) w.getBlockAt(p.x + i, p.y + h, p.z) else w.getBlockAt(p.x, p.y + h, p.z + i)).let { if (it.type == Material.SHROOMLIGHT) it.type = Material.AIR } }
                         close(p)
                         to.sendMessage("Closed and removed " + p.key() + ".")
+                    }
+                    "fruit" -> {
+                        val pl = to as? Player ?: return to.sendMessage("Only in the game.")
+                        HavenItems.instance?.let { pl.inventory.addItem(it.make(HavenItems.Kind.SEA_FRUIT, 4), it.make(HavenItems.Kind.GLOW_FRUIT, 4)) }
+                        to.sendMessage("Four sea fruit and four glow fruit.")
+                    }
+                    "kit" -> {
+                        val pl = to as? Player ?: return to.sendMessage("Only in the game.")
+                        HavenItems.instance?.let { pl.inventory.addItem(it.make(HavenItems.Kind.STARSTONE, 20), it.make(HavenItems.Kind.FLYING_CARPET), it.make(HavenItems.Kind.MAGIC_WOOL, 5), it.make(HavenItems.Kind.STAR_DUST, 5), it.make(HavenItems.Kind.LIGHT_CRYSTAL, 5), org.bukkit.inventory.ItemStack(Material.LAVA_BUCKET, 1)) }
+                        to.sendMessage("Starstone for two teleportals, lava, a flying carpet, and wool, dust and crystals to try the recipes.")
+                    }
+                    "temple" -> {
+                        val pl = to as? Player ?: return to.sendMessage("Only in the game.")
+                        if (!Haven.isHaven(pl.world)) return to.sendMessage("Only in a Haven.")
+                        val at = pl.location.add(pl.location.direction.setY(0).multiply(16.0))
+                        to.sendMessage(if (HavenWorld.instance?.temple(pl.world, at.blockX, at.blockZ) == true) "An angel temple at ${at.blockX} ${at.blockZ}." else "No ground there.")
+                    }
+                    "seabuilder" -> {
+                        val pl = to as? Player ?: return to.sendMessage("Only in the game.")
+                        if (!Haven.isHaven(pl.world)) return to.sendMessage("Only in a Haven.")
+                        HavenCreatures.instance?.spawnBuilder(pl.location.add(0.0, 1.0, 0.0), sea = true)
+                        to.sendMessage("A sea builder. It looks for sea floor within 24 blocks and starts within ten seconds.")
                     }
                     "go" -> {
                         val pl = args.getOrNull(1)?.let { Bukkit.getPlayerExact(it) } ?: (to as? Player) ?: return to.sendMessage("Who?")

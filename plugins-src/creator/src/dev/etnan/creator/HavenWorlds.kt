@@ -59,7 +59,7 @@ class HavenWorlds : Listener {
             val seed = seeds[name.lowercase()] ?: java.util.Random().nextLong().also { seeds[name.lowercase()] = it; save() }
             val w = WorldCreator(name).environment(World.Environment.NORMAL).seed(seed).generator(HavenGenerator())
                 .generateStructures(false).keepSpawnLoaded(TriState.FALSE).createWorld() ?: return null
-            Haven.plugin.logger.info("Haven: ${w.name} for ${home.name} (seed $seed)")
+            Haven.plugin.logger.info("Haven: ${w.name} for ${home.name} (seed $seed): ${HavenGenerator.survey(seed)}")
             w
         }
         rules(haven)

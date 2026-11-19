@@ -74,6 +74,10 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
         Bukkit.getScheduler().runTaskTimer(Haven.plugin, Runnable { tick() }, 40L, 1L)
     }
 
+    /** No building or building site within r (the small claims of 10 only mark where a builder lives). */
+    fun freeToBuild(w: World, x: Int, z: Int, r: Int) = claims.none { (n, c) -> n == w.name && c[2] >= 12 && (c[0] - x) * (c[0] - x) + (c[1] - z) * (c[1] - z) < (c[2] + r) * (c[2] + r) }
+    /** No temple (their claims are 30) within d blocks. */
+    private fun noTempleWithin(w: World, x: Int, z: Int, d: Int) = claims.none { (n, c) -> n == w.name && c[2] == 30 && (c[0] - x) * (c[0] - x) + (c[1] - z) * (c[1] - z) < d * d }
     fun free(w: World, x: Int, z: Int, r: Int) = claims.none { (n, c) -> n == w.name && (c[0] - x) * (c[0] - x) + (c[1] - z) * (c[1] - z) < (c[2] + r) * (c[2] + r) }
     fun claim(w: World, x: Int, z: Int, r: Int) { claims.add(w.name to intArrayOf(x, z, r)); save() }
     fun builtHere(x: Int, z: Int) { save() }
@@ -120,6 +124,14 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
             p.playSound(p.location, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.2f)
             p.showTitle(net.kyori.adventure.title.Title.title(Component.text("Haven", NamedTextColor.GOLD), Component.text("You are blessed", NamedTextColor.AQUA)))
         }, 30L)
+    }
+
+    /** Coming back into a Haven with nothing under your feet (the land may have been made anew): drift down. */
+    @EventHandler
+    fun onJoin(e: org.bukkit.event.player.PlayerJoinEvent) {
+        val p = e.player
+        if (!Haven.isHaven(p.world)) return
+        if ((1..4).all { p.location.block.getRelative(0, -it, 0).isPassable }) p.addPotionEffect(PotionEffect(PotionEffectType.SLOW_FALLING, 20 * 60, 0))
     }
 
     private val motes = Particle.DustOptions(Color.fromRGB(0xFF, 0xF1, 0xC8), 0.7f)
@@ -267,9 +279,31 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
         val mid = Haven.ground(w, bx + 8, bz + 8)
         val biome = if (mid != null) biome(mid.location) else ""
 
-        if (r.nextDouble() < 0.12) cloud(w, bx + r.nextInt(16), 64 + r.nextInt(16), bz + r.nextInt(16))
-        if (r.nextDouble() < 0.10) stone(w, bx + r.nextInt(16), 90 + r.nextInt(120), bz + r.nextInt(16))
+        if (r.nextDouble() < 0.03) {                                         // among the islets, under the real clouds
+            val cx = bx + r.nextInt(16)
+            val cy = 150 + r.nextInt(34)
+            val cz = bz + r.nextInt(16)
+            cloud(w, cx, cy, cz)
+            if (r.nextDouble() < 0.2) dweller(w.getBlockAt(cx, cy + 1, cz), r.nextDouble() < 0.35)      // now and then an angel lives on one
+        }
+        if (r.nextDouble() < 0.10) stone(w, bx + r.nextInt(16), 70 + r.nextInt(110), bz + r.nextInt(16))
+        for (isl in HavenGenerator.isletsNear(w.seed, bx, bz, bx + 15, bz + 15)) if (isl.x shr 4 == c.x && isl.z shr 4 == c.z) {
+            falls(w, isl)
+            // on some of the bigger islets an angel keeps watch, and on a few there is a treasure
+            if (isl.r >= 6 && r.nextDouble() < 0.18) (isl.y + 4 downTo isl.y - 2).map { w.getBlockAt(isl.x, it, isl.z) }
+                .firstOrNull { it.type.isSolid && !it.type.name.endsWith("_LEAVES") && !it.type.name.endsWith("_LOG") }?.let { dweller(it, r.nextDouble() < 0.35) }
+        }
         clams(w, bx, bz)
+        if (r.nextDouble() < 0.006 && free(w, bx + 8, bz + 8, 150)) seaFloor(w, bx + 8, bz + 8)?.let { f ->     // a sea builder lives here
+            creatures.spawnBuilder(f.location.add(0.5, 3.0, 0.5), sea = true)
+            claim(w, f.x, f.z, 10)
+            Haven.plugin.logger.info("Haven: a sea builder at ${f.x} ${f.y + 3} ${f.z}")
+        }
+        if (r.nextDouble() < 0.07) seaFruit(w, bx + r.nextInt(16), bz + r.nextInt(16))
+        repeat(3) {                                                          // glow fruit on the cave floors
+            if (r.nextDouble() < 0.4) caveFloor(w, bx + r.nextInt(16), bz + r.nextInt(16))?.let { f ->
+                if (f.type != Material.VERDANT_FROGLIGHT && f.type != Material.SEA_LANTERN) f.getRelative(0, 1, 0).setType(Material.VERDANT_FROGLIGHT, false) }
+        }
         when (biome) {
             "golden_plains" -> if (r.nextDouble() < 0.45) field(w, bx + 4 + r.nextInt(8), bz + 4 + r.nextInt(8))
             "crystal_valley" -> crystals(w, bx, bz)
@@ -282,14 +316,22 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
         if (biome in listOf("golden_plains", "golden_savanna", "flower_meadow", "glory_peaks") && r.nextDouble() < 0.05) repeat(1 + r.nextInt(2)) { spawnWingedHorse(top) }
         if (r.nextDouble() < 0.008) creatures.spawnAngel(top)
         if (r.nextDouble() < 0.006 && free(w, bx + 8, bz + 8, 200)) { creatures.spawnBuilder(top.clone().add(0.0, 2.0, 0.0)); claim(w, bx + 8, bz + 8, 10) }
+        // in the caves: a few treasures, and now and then a builder who makes cave houses there
+        if (r.nextDouble() < 0.5) repeat(4) {
+            val f = caveFloor(w, bx + r.nextInt(16), bz + r.nextInt(16)) ?: return@repeat
+            val what = r.nextDouble()
+            if (what < 0.05) caveChest(f)
+            else if (what < 0.13 && free(w, f.x, f.z, 120)) { creatures.spawnBuilder(f.location.add(0.5, 1.5, 0.5), cave = true); claim(w, f.x, f.z, 10) }
+        }
         val roll = r.nextDouble()
         when {
             roll < 0.012 -> magic.makeColumn(w, bx + 8, bz + 8)
             roll < 0.020 -> magic.makeRift(w, bx + 8, bz + 8)
-            roll < 0.026 -> magic.makePool(w, bx + 8, bz + 8, "gold")
+            roll < 0.023 -> magic.makePool(w, bx + 8, bz + 8, "gold")
+            roll < 0.026 -> {}
             roll < 0.029 && magic.distanceTo("well", top) > 400 -> magic.makeWell(w, bx + 8, bz + 8)
             roll < 0.0293 && magic.distanceTo("spring", top) > 800 -> magic.makePool(w, bx + 8, bz + 8, "spring")
-            roll < 0.034 && free(w, bx + 8, bz + 8, 60) -> temple(w, bx + 8, bz + 8)
+            roll < 0.0325 && free(w, bx + 8, bz + 8, 60) && noTempleWithin(w, bx + 8, bz + 8, 700) -> temple(w, bx + 8, bz + 8)
         }
     }
 
@@ -300,8 +342,90 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
             val f = (dx * dx).toDouble() / (rx * rx) + (dz * dz).toDouble() / (rz * rz) + dy * dy * 0.6
             if (f > 1 || Haven.rnd.nextDouble() < 0.12) continue
             val b = w.getBlockAt(x + dx, y + dy, z + dz)
-            if (b.type.isAir && w.isChunkLoaded(b.x shr 4, b.z shr 4)) b.setType(Material.WHITE_WOOL, false)
+            if (w.isChunkLoaded(b.x shr 4, b.z shr 4) && b.type.isAir) b.setType(Material.WHITE_WOOL, false)   // never wake a chunk for a cloud
         }
+    }
+
+    /**
+     * The waterfalls of an islet: a spring in a notch at its rim (two on the bigger ones), so the water runs over the
+     * edge and falls to the land or the sea far below.
+     */
+    private fun falls(w: World, isl: HavenGenerator.Companion.Islet) {
+        val dirs = listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1, 1 to 1, -1 to -1, 1 to -1, -1 to 1).shuffled()
+        var made = 0
+        for ((dx, dz) in dirs) {
+            if (made >= (if (isl.r >= 7) 2 else 1)) break
+            var rim: Block? = null
+            var y = isl.y + 3
+            for (k in 0..isl.r + 3) {
+                val x = isl.x + dx * k
+                val z = isl.z + dz * k
+                if (!w.isChunkLoaded(x shr 4, z shr 4)) { rim = null; break }
+                var top: Block? = null
+                for (yy in y downTo y - 4) { val b = w.getBlockAt(x, yy, z); if (b.type.isSolid && !b.type.name.endsWith("_LEAVES") && !b.type.name.endsWith("_LOG")) { top = b; break } }
+                if (top == null) break
+                rim = top
+                y = top.y + 1
+            }
+            val b = rim ?: continue
+            val out = b.getRelative(dx, 0, dz)
+            if (!out.type.isAir || !b.getRelative(0, -1, 0).type.isSolid) continue
+            b.getRelative(0, 1, 0).let { if (!it.type.isAir && !it.type.isSolid) it.setType(Material.AIR, false) }
+            b.setType(Material.WATER, true)                                    // with physics, so it starts to run
+            made++
+        }
+    }
+
+    /** The floor of a cave under (x, z): a solid block with two of air over it and rock above that, or null. */
+    fun caveFloor(w: World, x: Int, z: Int): Block? {
+        val top = Haven.ground(w, x, z) ?: return null
+        for (y in top.y - 4 downTo HavenGenerator.ISLANDS_LOW + 3) {
+            val b = w.getBlockAt(x, y, z)
+            if (b.type.isAir && b.getRelative(0, 1, 0).type.isAir && b.getRelative(0, -1, 0).type.isSolid) return b.getRelative(0, -1, 0)
+            if (b.type.isAir && !b.getRelative(0, -1, 0).type.isSolid && w.getBlockAt(x, y - 3, z).type.isAir) return null     // under the island: open sky
+        }
+        return null
+    }
+
+    /** A treasure in a cave: a chest on a glowing sea lantern. */
+    private fun caveChest(floor: Block) {
+        val at = floor.getRelative(0, 1, 0)
+        floor.setType(Material.SEA_LANTERN, false)
+        at.setType(Material.CHEST, false)
+        (at.state as? org.bukkit.block.Chest)?.let { skyTreasure(it) }
+        Haven.plugin.logger.info("Haven: a treasure in a cave at ${at.x} ${at.y} ${at.z}")
+    }
+
+    /** An angel on top of [top] (the top of a cloud or an islet), and sometimes a small treasure chest beside it. */
+    private fun dweller(top: Block, chest: Boolean) {
+        if (top.type.isAir) top.setType(Material.WHITE_WOOL, false)            // the middle of a cloud may be a hole
+        val up = top.getRelative(0, 1, 0)
+        if (!(0..2).all { up.getRelative(0, it, 0).isPassable }) return
+        creatures.spawnAngel(up.location.add(0.5, 0.0, 0.5))
+        if (!chest) return
+        for ((dx, dz) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+            val under = top.getRelative(dx, 0, dz)
+            val at = under.getRelative(0, 1, 0)
+            if (!under.type.isSolid || !at.type.isAir && !at.isReplaceable) continue
+            at.setType(Material.CHEST, false)
+            (at.state as? org.bukkit.block.Chest)?.let { skyTreasure(it) }
+            Haven.plugin.logger.info("Haven: a treasure in the sky at ${at.x} ${at.y} ${at.z}")
+            return
+        }
+    }
+
+    /** What an angel in the sky keeps: less than a temple, and hardly any gold. */
+    private fun skyTreasure(c: org.bukkit.block.Chest) {
+        val inv = c.blockInventory
+        val r = Haven.rnd
+        inv.addItem(org.bukkit.inventory.ItemStack(Material.DIAMOND, 1 + r.nextInt(3)))
+        inv.addItem(items.make(HavenItems.Kind.PEARL, 1 + r.nextInt(2)))
+        if (r.nextInt(2) == 0) inv.addItem(items.make(HavenItems.Kind.LIGHT_CRYSTAL))
+        if (r.nextInt(2) == 0) inv.addItem(org.bukkit.inventory.ItemStack(Material.GOLDEN_APPLE))
+        if (r.nextInt(4) == 0) inv.addItem(items.make(HavenItems.Kind.HAVENITE_SCRAP))
+        if (r.nextInt(12) == 0) inv.addItem(org.bukkit.inventory.ItemStack(Material.ELYTRA))
+        if (r.nextInt(20) == 0) inv.addItem(items.make(HavenItems.Kind.TIME_PEARL))
+        if (r.nextInt(60) == 0) inv.addItem(items.make(HavenItems.Kind.GOLDEN_RAMSHORN))
     }
 
     private fun stone(w: World, x: Int, y: Int, z: Int) {
@@ -309,6 +433,35 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
         if (!b.type.isAir || !b.getRelative(0, -3, 0).type.isAir) return
         b.setType(Material.CALCITE, false)
         if (Haven.rnd.nextBoolean()) b.getRelative(1, 0, 0).let { if (it.type.isAir) it.setType(Material.CALCITE, false) }
+    }
+
+    /** The sea floor under (x, z): the highest block under the water, or null where there is no open sea over it. */
+    fun seaFloor(w: World, x: Int, z: Int): Block? {
+        if (w.getBlockAt(x, HavenGenerator.SEA - 2, z).type != Material.WATER) return null
+        for (y in HavenGenerator.SEA - 3 downTo 2) {
+            val b = w.getBlockAt(x, y, z)
+            if (b.type == Material.WATER || b.type == Material.KELP || b.type == Material.KELP_PLANT || b.type == Material.SEAGRASS ||
+                b.type == Material.TALL_SEAGRASS || b.type == Material.BUBBLE_COLUMN) continue
+            return if (b.type.isSolid) b else null
+        }
+        return null
+    }
+
+    /** Sea fruit: one to three turquoise fruits growing close together on the sea floor. */
+    private fun seaFruit(w: World, x0: Int, z0: Int) {
+        repeat(1 + Haven.rnd.nextInt(3)) { i ->
+            val x = x0 + if (i == 0) 0 else Haven.rnd.nextInt(5) - 2
+            val z = z0 + if (i == 0) 0 else Haven.rnd.nextInt(5) - 2
+            if (!w.isChunkLoaded(x shr 4, z shr 4)) return@repeat
+            for (y in 31 downTo 3) {
+                val b = w.getBlockAt(x, y, z)
+                if (b.type == Material.WATER) continue
+                val up = b.getRelative(0, 1, 0)
+                if ((b.type == Material.SAND || b.type == Material.PRISMARINE || b.type == Material.CALCITE) && up.type == Material.WATER)
+                    up.setType(Material.WARPED_WART_BLOCK, false)
+                break
+            }
+        }
     }
 
     private fun clams(w: World, bx: Int, bz: Int) {
@@ -370,14 +523,18 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
         }
     }
 
-    /** An angel temple: the great domed temple, with treasure inside and two angels at the door. */
+    /**
+     * An angel temple: the great domed temple, open up into its dome, with a chandelier, two rows of pillars, water
+     * running along the walls from two falls at the back, and the treasure on an altar. Two angels keep the portal
+     * and one the altar; they walk in and out.
+     */
     fun temple(w: World, x: Int, z: Int): Boolean {
         val g = Haven.ground(w, x, z) ?: return false
         val rot = Haven.rnd.nextInt(4)
         val plan = HavenArchitecture.plan(HavenArchitecture.Kind.TEMPLE, Haven.rnd.nextLong()).map { HavenArchitecture.turn(it, rot) }
         for (p in plan) {
             val b = w.getBlockAt(x + p.x, g.y + p.y, z + p.z)
-            b.setBlockData(p.block, false)
+            b.setBlockData(p.block, p.block.material == Material.WATER && p.y > 0)      // the falls must start to run
             if (p.block.material == Material.CHEST) (b.state as? org.bukkit.block.Chest)?.let { treasure(it) }
         }
         // fill under the floor down to the ground so it does not float
@@ -388,6 +545,10 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
         }
         val door = HavenArchitecture.turn(HavenArchitecture.Part(0, 1, -2, Material.AIR.createBlockData()), rot)
         repeat(2) { creatures.spawnAngel(Location(w, x + door.x + 0.5 + it * 2 - 1, g.y + 1.0, z + door.z + 0.5)) }
+        plan.firstOrNull { it.block.material == Material.CHEST }?.let { c ->          // the keeper of the altar, beside it on the dais
+            val off = HavenArchitecture.turn(HavenArchitecture.Part(3, -1, 0, Material.AIR.createBlockData()), rot)
+            creatures.spawnAngel(Location(w, x + c.x + off.x + 0.5, g.y + c.y + off.y.toDouble(), z + c.z + off.z + 0.5))
+        }
         claim(w, x, z, 30)
         Haven.plugin.logger.info("Haven: an angel temple at $x ${g.y} $z")
         return true
@@ -397,7 +558,7 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
         val inv = c.blockInventory
         val r = Haven.rnd
         inv.addItem(org.bukkit.inventory.ItemStack(Material.DIAMOND, 3 + r.nextInt(6)))
-        inv.addItem(org.bukkit.inventory.ItemStack(Material.GOLD_INGOT, 8 + r.nextInt(16)))
+        inv.addItem(org.bukkit.inventory.ItemStack(Material.GOLD_INGOT, 2 + r.nextInt(5)))
         inv.addItem(org.bukkit.inventory.ItemStack(Material.GOLDEN_APPLE, 1 + r.nextInt(3)))
         inv.addItem(items.make(HavenItems.Kind.LIGHT_CRYSTAL, 1 + r.nextInt(3)))
         if (r.nextInt(2) == 0) inv.addItem(items.make(HavenItems.Kind.PEARL, 1 + r.nextInt(2)))

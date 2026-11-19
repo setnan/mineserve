@@ -99,34 +99,29 @@ put("worldgen/placed_feature", "golden_fungi", {"feature": f"{NS}:golden_fungus"
 
 # Waterfalls: water springs in the island rock, many more than in the overworld.
 put("worldgen/placed_feature", "springs", {"feature": "minecraft:spring_water", "placement": [
-    {"type": "minecraft:count", "count": 90}, {"type": "minecraft:in_square"},
-    {"type": "minecraft:height_range", "height": {"type": "minecraft:uniform", "min_inclusive": {"absolute": 40},
-                                                  "max_inclusive": {"absolute": 250}}},
+    {"type": "minecraft:count", "count": 50}, {"type": "minecraft:in_square"},
+    {"type": "minecraft:height_range", "height": {"type": "minecraft:uniform", "min_inclusive": {"absolute": 48},
+                                                  "max_inclusive": {"absolute": 192}}},
     {"type": "minecraft:biome"}]})
 
 # Rainbow falls: three times the waterfalls (a feature may appear only once per biome, so it gets its own).
 put("worldgen/placed_feature", "springs_rich", {"feature": "minecraft:spring_water", "placement": [
-    {"type": "minecraft:count", "count": 180}, {"type": "minecraft:in_square"},
-    {"type": "minecraft:height_range", "height": {"type": "minecraft:uniform", "min_inclusive": {"absolute": 40},
-                                                  "max_inclusive": {"absolute": 250}}},
+    {"type": "minecraft:count", "count": 120}, {"type": "minecraft:in_square"},
+    {"type": "minecraft:height_range", "height": {"type": "minecraft:uniform", "min_inclusive": {"absolute": 48},
+                                                  "max_inclusive": {"absolute": 192}}},
     {"type": "minecraft:biome"}]})
 
 # Ores grow in Haven's pearl rock (calcite) and its diorite veins, not only in stone (see HavenGenerator.kt).
-put("tags/block", "ore_replaceables", {"values": ["minecraft:calcite", "minecraft:diorite", "minecraft:stone",
-                                                   "minecraft:granite", "minecraft:andesite"]})
+put("tags/block", "ore_replaceables", {"values": ["minecraft:calcite", "minecraft:diorite", "minecraft:smooth_sandstone",
+                                                   "minecraft:stone", "minecraft:granite", "minecraft:andesite"]})
 ORE_SWAP = {"minecraft:stone_ore_replaceables": f"{NS}:ore_replaceables", "minecraft:height_specific_ore_replaceables": f"{NS}:ore_replaceables"}
 
-# Gold in the mountains of the glory peaks.
-put("worldgen/placed_feature", "gold_rich", {"feature": clone_feature("minecraft:ore_gold", ORE_SWAP, "haven"), "placement": [
-    {"type": "minecraft:count", "count": 30}, {"type": "minecraft:in_square"},
-    {"type": "minecraft:height_range", "height": {"type": "minecraft:uniform", "min_inclusive": {"absolute": 40},
-                                                  "max_inclusive": {"absolute": 250}}},
-    {"type": "minecraft:biome"}]})
 
 # --- Ores: diamonds as common as gold in the Nether (they drop shards), rare havenite, pearl (nacre) in the peaks ---
 
 def ore(name, state, size, count, lo, hi, discard=0.0):
-    put("worldgen/feature", name, {"type": "minecraft:ore", "discard_chance_on_air_exposure": discard, "size": size,
+    # veins of two or three blocks need scattered_ore (as ancient debris does): plain ore places nothing that small
+    put("worldgen/feature", name, {"type": "minecraft:scattered_ore" if size <= 3 else "minecraft:ore", "discard_chance_on_air_exposure": discard, "size": size,
         "targets": [{"state": state, "target": {"predicate_type": "minecraft:tag_match", "tag": f"{NS}:ore_replaceables"}}]})
     return put("worldgen/placed_feature", name, {"feature": f"{NS}:{name}", "placement": [
         {"type": "minecraft:count", "count": count}, {"type": "minecraft:in_square"},
@@ -134,9 +129,15 @@ def ore(name, state, size, count, lo, hi, discard=0.0):
         {"type": "minecraft:biome"}]})
 
 
-DIAMONDS = ore("diamonds", "minecraft:diamond_ore", 8, 10, 34, 250)
-HAVENITE = ore("havenite_debris", "minecraft:waxed_oxidized_chiseled_copper", 2, 1, 34, 120, discard=1.0)
-NACRE = ore("nacre", "minecraft:pearlescent_froglight", 16, 10, 140, 250)
+# The islands lie between y 48 and 192 (HavenGenerator.kt). Nacre is mostly hidden in the rock, so the peaks are not
+# covered in white, glowing blobs.
+DIAMONDS = ore("diamonds", "minecraft:diamond_ore", 8, 7, 48, 190)
+HAVENITE = ore("havenite_debris", "minecraft:waxed_oxidized_chiseled_copper", 2, 1, 48, 110, discard=1.0)
+# A little gold in the mountains of the glory peaks, and nowhere else (it was far too easy to come by).
+GOLD = ore("gold_peaks", "minecraft:gold_ore", 5, 1, 60, 190)
+NACRE = ore("nacre", "minecraft:pearlescent_froglight", 8, 3, 110, 190, discard=0.8)
+# Glowstone in the rock and the cave walls: it gives star dust (for the starstone of the teleportals).
+STARS = ore("star_dust", "minecraft:glowstone", 4, 6, 48, 185)
 CORAL = ["minecraft:warm_ocean_vegetation", "minecraft:seagrass_warm", "minecraft:sea_pickle", "minecraft:kelp_warm"]
 
 # --- Biomes ------------------------------------------------------------------------------------------
@@ -189,7 +190,7 @@ def biome(name, base, *, trees=None, extra=(), notrees=False, grass, foliage, sk
     for old, new in (trees or {}).items():
         steps[9] = [new if f == old else f for f in steps[9]]
     steps[8].append(f"{NS}:springs")
-    steps[6] += [DIAMONDS, HAVENITE]
+    steps[6] += [DIAMONDS, HAVENITE, STARS]
     steps[9] += CORAL
     for step, fid in extra:
         steps[step].append(fid)
@@ -206,7 +207,7 @@ B = {
     "oasis": biome("oasis", "mangrove_swamp", grass="#8fe39a", foliage="#ff9a8a", water="#19d3e0",
                    trees={"minecraft:trees_mangrove": clone_placed("trees_mangrove", OASIS, "oasis")}),
     "glory_peaks": biome("glory_peaks", "meadow", grass="#b5e88a", foliage="#d8c060",
-                         extra=[(9, clone_placed("trees_old_growth_pine_taiga", {}, "glory", count=3)), (6, f"{NS}:gold_rich"), (6, NACRE)]),
+                         extra=[(9, clone_placed("trees_old_growth_pine_taiga", {}, "glory", count=3)), (6, GOLD), (6, NACRE)]),
     "golden_savanna": biome("golden_savanna", "savanna", grass="#e3d070", foliage="#f2c230"),
     "golden_forest": biome("golden_forest", "flower_forest", grass="#d6e07a", foliage="#f0c040",
                            extra=[(9, f"{NS}:golden_fungi")]),

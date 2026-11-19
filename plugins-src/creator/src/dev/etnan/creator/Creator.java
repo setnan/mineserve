@@ -94,6 +94,9 @@ public final class Creator extends JavaPlugin implements Listener {
     private Helper helper;
     private HavenPortals havenPortals;
     private HavenArmor havenArmor;
+    private HavenFruit havenFruit;
+    private HavenCarpet havenCarpet;
+    private Teleportals teleportals;
     private HavenCreatures havenCreatures;
     private TheLion theLion;
     private Skins skins;
@@ -148,13 +151,16 @@ public final class Creator extends JavaPlugin implements Listener {
         var havenItems = new HavenItems();
         havenItems.recipes();
         havenArmor = new HavenArmor(havenItems);
+        havenFruit = new HavenFruit(havenItems);
+        havenCarpet = new HavenCarpet(havenItems);
+        teleportals = new Teleportals(this, havenPortals, havenItems);
         var havenMagic = new HavenMagic(havenItems, havenArmor);
         havenCreatures = new HavenCreatures(havenItems, havenArmor);
         var havenWorld = new HavenWorld(havenItems, havenMagic, havenCreatures);
         var havenWorlds = new HavenWorlds();
         theLion = new TheLion(havenMagic, havenWorld, helper);
         new HavenMusic(havenWorld);
-        for (Listener l : new Listener[] { havenItems, havenArmor, havenMagic, havenCreatures, havenWorld, havenWorlds, theLion, new WorldNames() })
+        for (Listener l : new Listener[] { havenItems, havenArmor, havenMagic, havenCreatures, havenWorld, havenWorlds, theLion, havenFruit, havenCarpet, teleportals, new WorldNames() })
             getServer().getPluginManager().registerEvents(l, this);
         for (World w : Bukkit.getWorlds()) sleepRule(w);
         Bukkit.getScheduler().runTaskTimer(this, this::magnet, 20L, 4L);
@@ -236,6 +242,9 @@ public final class Creator extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         if (havenArmor != null) havenArmor.shutdown();
+        if (havenFruit != null) havenFruit.shutdown();
+        if (havenCarpet != null) havenCarpet.shutdown();
+        if (teleportals != null) teleportals.shutdown();
         if (havenCreatures != null) havenCreatures.shutdown();
         if (theLion != null) theLion.shutdown();
         if (storage != null) storage.save();

@@ -1,7 +1,7 @@
 {
   "type": "minecraft:ore",
-  "discard_chance_on_air_exposure": 0.0,
-  "size": 16,
+  "discard_chance_on_air_exposure": 0.8,
+  "size": 8,
   "targets": [
     {
       "state": "minecraft:pearlescent_froglight",
