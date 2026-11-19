@@ -132,7 +132,6 @@ class HavenCreatures(private val items: HavenItems, private val armor: HavenArmo
         if (cave) m.persistentDataContainer.set(caveKey, PersistentDataType.BYTE, 1)
         if (sea) m.persistentDataContainer.set(seaKey, PersistentDataType.BYTE, 1)
         dressBuilder(m)
-        if (sea) shine(m)
         m.setDescription(null)
         m.isInvulnerable = true
         m.isSilent = true
@@ -143,12 +142,10 @@ class HavenCreatures(private val items: HavenItems, private val armor: HavenArmo
         m.persistentDataContainer.set(roleKey, PersistentDataType.STRING, "builder")
     }
 
-    /** A sea builder shines in the water: an aqua outline, seen from far off. */
+    /** A sea builder shines in the water: a few motes of sea glow drift off its suit (no outline: that shows through walls). */
     private fun shine(m: Mannequin) {
-        val board = Bukkit.getScoreboardManager().mainScoreboard
-        val team = board.getTeam("haven_sea") ?: board.registerNewTeam("haven_sea").also { it.color(net.kyori.adventure.text.format.NamedTextColor.AQUA) }
-        team.addEntity(m)
-        m.isGlowing = true
+        if (m.isGlowing) m.isGlowing = false                                  // the first ones had an outline
+        if (ticks % 8 == 0L) m.world.spawnParticle(Particle.GLOW, m.location.add(0.0, 0.6, 0.0), 2, 0.2, 0.35, 0.2, 0.0)
     }
 
     /** Angels from before they had faces and wings are dressed the moment their chunk loads. */
@@ -444,6 +441,7 @@ class HavenCreatures(private val items: HavenItems, private val armor: HavenArmo
         val w = m.world
         if (!Haven.near(m.location, 96.0)) return
         val pdc = m.persistentDataContainer
+        if (pdc.has(seaKey)) shine(m)
         var job = Job.of(pdc.get(jobKey, PersistentDataType.STRING))
         if (job == null) {
             if (ticks % 200 != 0L) { hover(m); return }
