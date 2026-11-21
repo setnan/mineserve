@@ -28,6 +28,7 @@ class HavenWorlds : Listener {
     private val seeds = mutableMapOf<String, Long>()
 
     init {
+        instance = this
         if (file.exists()) YamlConfiguration.loadConfiguration(file).let { y ->
             y.getConfigurationSection("seeds")?.getKeys(false)?.forEach { seeds[it] = y.getLong("seeds.$it") } }
         // after every plugin is enabled and Multiverse has loaded its worlds
@@ -35,7 +36,13 @@ class HavenWorlds : Listener {
         Bukkit.getScheduler().runTaskTimer(Haven.plugin, Runnable { sun() }, 1L, 1L)
     }
 
-    private fun isHome(w: World) = !Haven.isHaven(w) && w.environment == World.Environment.NORMAL &&
+    companion object {
+        private var instance: HavenWorlds? = null
+        /** Puts the members into the inventory group of home (making one if it has none): for families without a Haven too. */
+        fun group(home: World, vararg members: World) { instance?.sort(home, *members) }
+    }
+
+    private fun isHome(w: World) = !Haven.isHaven(w) && !Pure.isPure(w) && w.environment == World.Environment.NORMAL &&
         !w.name.endsWith("_nether") && !w.name.endsWith("_the_end")
 
     @EventHandler
@@ -43,7 +50,7 @@ class HavenWorlds : Listener {
         val w = e.world
         if (Haven.isHaven(w)) { rules(w); return }
         if (w.name.endsWith("_nether") || w.name.endsWith("_the_end")) {
-            Bukkit.getScheduler().runTask(Haven.plugin, Runnable { Bukkit.getWorld(Haven.root(w))?.let { group(it, w) } })
+            Bukkit.getScheduler().runTask(Haven.plugin, Runnable { Bukkit.getWorld(Haven.root(w))?.let { sort(it, w) } })
             return
         }
         if (isHome(w)) Bukkit.getScheduler().runTask(Haven.plugin, Runnable { if (w.isValidWorld()) ensure(w) })
@@ -63,7 +70,7 @@ class HavenWorlds : Listener {
             w
         }
         rules(haven)
-        group(home, haven)
+        sort(home, haven)
         return haven
     }
 
@@ -80,7 +87,7 @@ class HavenWorlds : Listener {
      * everything, and no two families share. A family without a group gets its own (named after the world, sharing
      * all); a nether, end or Haven made later joins its world's group. By reflection: no hard dependency.
      */
-    private fun group(home: World, vararg members: World) {
+    private fun sort(home: World, vararg members: World) {
         val inv = Bukkit.getPluginManager().getPlugin("Multiverse-Inventories") ?: return
         runCatching {
             val cl = inv.javaClass.classLoader

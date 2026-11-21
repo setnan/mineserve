@@ -55,7 +55,7 @@ class HavenArmor(private val items: HavenItems) : Listener {
     fun fullSet(p: Player) = pieces(p) == 4
 
     private fun tick() {
-        for (p in Bukkit.getOnlinePlayers()) {
+        for (p in Pure.players()) {
             val inv = p.inventory
             // helmet: air runs out about five times slower
             if (items.isHavenite(inv.helmet) && p.isInWater && p.remainingAir < p.maximumAir) p.remainingAir = minOf(p.maximumAir, p.remainingAir + 4)

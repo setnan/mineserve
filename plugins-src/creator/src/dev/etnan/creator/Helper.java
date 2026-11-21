@@ -512,7 +512,7 @@ public final class Helper implements Listener {
 
     String path(UUID id, String k) { return id + "." + k; }
 
-    boolean active(Player p) { return conf.getBoolean(path(p.getUniqueId(), "active")); }
+    boolean active(Player p) { return !Pure.isPure(p.getWorld()) && conf.getBoolean(path(p.getUniqueId(), "active")); }   // no helper in a world without cheats
 
     boolean flag(UUID id, String k, boolean def) { return conf.getBoolean(path(id, k), def); }
 
@@ -674,7 +674,7 @@ public final class Helper implements Listener {
     void tick() {
         tick++;
         if (tick % 20 == 0)                                   // (re)spawn for players who should have one
-            for (Player p : Bukkit.getOnlinePlayers())
+            for (Player p : Pure.players())
                 if (active(p) && !helpers.containsKey(p.getUniqueId())) spawn(p, null);
         if (tick % 600 == 0) flushBags();
         if (tick == 100) builder.loadSites();                         // the worlds are loaded by now
@@ -691,6 +691,11 @@ public final class Helper implements Listener {
                 Location l = h.w.getLocation();
                 l.setPitch(0);
                 if (h.m.getWorld() != l.getWorld() || h.m.getLocation().distanceSquared(l) > 0.0001) h.m.teleport(l);
+                continue;
+            }
+            if (Pure.isPure(p.getWorld())) {                    // its owner went to a world without cheats: it stays behind
+                if (h.merged) movement.ownBody(p);
+                despawn(id, false);
                 continue;
             }
             if (!h.w.isValid() || !h.m.isValid()) { spawn(p, null); continue; }

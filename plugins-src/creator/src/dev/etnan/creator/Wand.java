@@ -172,7 +172,7 @@ final class Wand implements Listener {
         r.setIngredient('B', Material.BLAZE_ROD);
         Bukkit.removeRecipe(recipeKey);
         Bukkit.addRecipe(r);
-        for (Player p : Bukkit.getOnlinePlayers()) p.discoverRecipe(recipeKey);
+        for (Player p : Pure.players()) p.discoverRecipe(recipeKey);
         Bukkit.getScheduler().runTaskTimer(plugin, this::lightTick, 20L, 5L);
     }
 
@@ -922,7 +922,7 @@ final class Wand implements Listener {
 
     private void lightTick() {
         long now = System.currentTimeMillis();
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Pure.players()) {
             UUID id = p.getUniqueId();
             Block old = lightAt.get(id);
             boolean on = !p.isDead() && (lightUntil.getOrDefault(id, 0L) > now

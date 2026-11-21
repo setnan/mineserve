@@ -56,6 +56,8 @@ class HavenFruit(private val items: HavenItems) : Listener {
     private val jumpKey = Haven.key("fruit_jump")
     private val fallKey = Haven.key("fruit_fall")
     private val speedKey = Haven.key("fruit_speed")
+    private val digKey = Haven.key("fruit_dig")
+    private val hitKey = Haven.key("fruit_hit")
     private val reachKey = Haven.key("fruit_reach")
     private val touchKey = Haven.key("fruit_touch")
     private val turquoise = Particle.DustOptions(Color.fromRGB(0x2A, 0xD4, 0xD0), 1.4f)
@@ -118,6 +120,8 @@ class HavenFruit(private val items: HavenItems) : Listener {
         p.sendActionBar(Component.text("Planted: there is a fruit here in about ten minutes", if (sea) NamedTextColor.AQUA else NamedTextColor.GREEN))
     }
 
+    private var rounds = 0
+
     /** Sprouts whose time has come turn into fruit, when their chunk is loaded. */
     private fun ripen() {
         val now = System.currentTimeMillis()
@@ -132,12 +136,12 @@ class HavenFruit(private val items: HavenItems) : Listener {
             it.remove()
             changed = true
             if (b.type != (if (s.sea) Material.TUBE_CORAL_FAN else Material.FERN)) continue
-            b.setType(if (s.sea) Material.WARPED_WART_BLOCK else Material.VERDANT_FROGLIGHT, false)
-            items.remember(b, if (s.sea) "seafruit" else "glowfruit")
+            if (s.sea) items.seaFruit(b) else items.glowFruit(b)
             w.spawnParticle(Particle.DUST, b.location.add(0.5, 0.7, 0.5), 20, 0.4, 0.4, 0.4, if (s.sea) turquoise else green)
             w.playSound(b.location, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, if (s.sea) 1.5f else 0.9f)
         }
         if (changed) save()
+        if (++rounds % 6 == 0) items.strayFruit()
     }
 
     // --- Eating ------------------------------------------------------------------------------------------
@@ -177,7 +181,7 @@ class HavenFruit(private val items: HavenItems) : Listener {
             val (id, s) = it.next()
             val p = Bukkit.getPlayer(id)
             if (p == null) { it.remove(); continue }
-            if (now >= s.until || p.isDead) {
+            if (now >= s.until || p.isDead || Pure.isPure(p.world)) {         // a fruit does nothing in a world without cheats
                 it.remove()
                 clear(p)
                 p.world.playSound(p.location, Sound.ENTITY_PUFFER_FISH_BLOW_OUT, 0.8f, 1f)
@@ -223,8 +227,62 @@ class HavenFruit(private val items: HavenItems) : Listener {
         set(p, Attribute.SAFE_FALL_DISTANCE, fallKey, 3.0 * size)
         set(p, Attribute.BLOCK_INTERACTION_RANGE, reachKey, 2.0 * (size - 1))
         set(p, Attribute.ENTITY_INTERACTION_RANGE, touchKey, 2.0 * (size - 1))
-        set(p, Attribute.MOVEMENT_SPEED, speedKey, 0.5 * (sqrt(size) - 1), AttributeModifier.Operation.MULTIPLY_SCALAR_1)
+        // as fast as it is big: a giant sixteen times your size takes strides sixteen times as long. Flying too, as far
+        // as the game lets a player fly (ten times the usual speed)
+        set(p, Attribute.MOVEMENT_SPEED, speedKey, size - 1, AttributeModifier.Operation.MULTIPLY_SCALAR_1)
+        set(p, Attribute.BLOCK_BREAK_SPEED, digKey, size - 1, AttributeModifier.Operation.MULTIPLY_SCALAR_1)   // and digs and hits as hard
+        set(p, Attribute.ATTACK_DAMAGE, hitKey, size - 1, AttributeModifier.Operation.MULTIPLY_SCALAR_1)
+        if (p.uniqueId !in flew) flew[p.uniqueId] = p.flySpeed
+        p.flySpeed = (flew.getValue(p.uniqueId) * size).toFloat().coerceAtMost(1f)
     }
+
+    private var digging = false
+
+    /**
+     * A giant's pick, shovel or axe takes a giant's bite: breaking a block takes with it the ball of blocks around it,
+     * half as many blocks across as the giant is times bigger (eight across at sixteen times). Every block is asked
+     * for like a block the player broke (so whatever guards a block guards it here too, and Haven's own finds drop as
+     * usual); chests and other blocks that hold something are left, and so is what cannot be broken. What falls out
+     * is gathered in stacks where the giant struck. The tool wears as for one block.
+     */
+    @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.MONITOR)
+    fun onDig(e: org.bukkit.event.block.BlockBreakEvent) {
+        if (digging) return
+        val p = e.player
+        val s = spells[p.uniqueId] ?: return
+        val across = (s.size / 2).toInt().coerceAtMost(8)
+        if (!s.big || across < 2) return
+        val r = across / 2.0
+        val mid = e.block
+        val tool = p.inventory.itemInMainHand
+        val got = HashMap<org.bukkit.inventory.ItemStack, Int>()
+        digging = true
+        try {
+            val n = Math.ceil(r).toInt()
+            for (dx in -n..n) for (dy in -n..n) for (dz in -n..n) {
+                if (dx == 0 && dy == 0 && dz == 0 || dx * dx + dy * dy + dz * dz > r * r) continue
+                val b = mid.getRelative(dx, dy, dz)
+                if (b.type.isAir || b.isLiquid || b.type.hardness < 0 || b.state is org.bukkit.block.TileState) continue
+                val ev = org.bukkit.event.block.BlockBreakEvent(b, p)
+                Bukkit.getPluginManager().callEvent(ev)
+                if (ev.isCancelled) continue
+                if (ev.isDropItems && p.gameMode != GameMode.CREATIVE) for (d in b.getDrops(tool, p)) got.merge(d.asOne(), d.amount) { a, c -> a + c }
+                b.setType(Material.AIR, true)
+            }
+        } finally { digging = false }
+        val at = mid.location.add(0.5, 0.5, 0.5)
+        for ((item, amount) in got) {
+            var left = amount
+            while (left > 0) { val k = minOf(left, item.maxStackSize); mid.world.dropItem(at, item.asQuantity(k)); left -= k }
+        }
+        mid.world.playSound(at, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.6f)
+        mid.world.spawnParticle(Particle.BLOCK, at, 60, r / 2, r / 2, r / 2, mid.blockData)
+    }
+
+    private val flew = HashMap<java.util.UUID, Float>()                     // how fast each giant flew before it grew
+
+    @EventHandler
+    fun onQuit(e: org.bukkit.event.player.PlayerQuitEvent) { if (e.player.uniqueId in spells || e.player.uniqueId in flew) clear(e.player) }
 
     private fun set(p: Player, a: Attribute, key: org.bukkit.NamespacedKey, amount: Double, op: AttributeModifier.Operation = AttributeModifier.Operation.ADD_NUMBER) {
         val inst = p.getAttribute(a) ?: return
@@ -236,7 +294,8 @@ class HavenFruit(private val items: HavenItems) : Listener {
         spells.remove(p.uniqueId)
         for ((a, k) in listOf(Attribute.SCALE to scaleKey, Attribute.STEP_HEIGHT to stepKey, Attribute.JUMP_STRENGTH to jumpKey,
             Attribute.SAFE_FALL_DISTANCE to fallKey, Attribute.BLOCK_INTERACTION_RANGE to reachKey, Attribute.ENTITY_INTERACTION_RANGE to touchKey,
-            Attribute.MOVEMENT_SPEED to speedKey)) p.getAttribute(a)?.removeModifier(k)
+            Attribute.MOVEMENT_SPEED to speedKey, Attribute.BLOCK_BREAK_SPEED to digKey, Attribute.ATTACK_DAMAGE to hitKey)) p.getAttribute(a)?.removeModifier(k)
+        flew.remove(p.uniqueId)?.let { p.flySpeed = it }
     }
 
     fun shutdown() { spells.keys.toList().forEach { id -> Bukkit.getPlayer(id)?.let { clear(it) } } }

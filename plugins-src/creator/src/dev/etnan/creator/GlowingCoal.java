@@ -43,7 +43,7 @@ final class GlowingCoal implements Listener {
         r.addIngredient(Material.REDSTONE);
         Bukkit.removeRecipe(recipeKey);
         Bukkit.addRecipe(r);
-        for (Player p : Bukkit.getOnlinePlayers()) p.discoverRecipe(recipeKey);
+        for (Player p : Pure.players()) p.discoverRecipe(recipeKey);
     }
 
     ItemStack item() {

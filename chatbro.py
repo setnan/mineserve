@@ -61,6 +61,18 @@ def may_talk(player):
     return player in ALLOWED or "*" in guests or player.lower() in guests
 
 
+def pure_world(player):
+    """The world without cheats the player is in (MC_PURE_WORLDS in .env, "globus" if unset), or None. Nothing is done
+    for a player there: no builds, no gifts, no helper. The Creator plugin stops the commands as well (Pure.kt)."""
+    names = [n.strip().lower() for n in load_env(os.path.join(MC_DIR, ".env")).get("MC_PURE_WORLDS", "globus").split(",") if n.strip()]
+    out = rcon(f"data get entity {player} Dimension")
+    dim = out.split('"')[1].split(":")[-1].lower() if '"' in out else ""
+    for n in names:
+        if dim in (n, n + "_nether", n + "_the_end"):
+            return n
+    return None
+
+
 def load_env(path):
     """Reads KEY=VALUE from a simple env file (comments and blank lines are skipped)."""
     env = {}
@@ -1351,6 +1363,11 @@ def follow_log():
                     player, request = m.group(1), k.group(1)
                 if not may_talk(player) and not HELPER_RE.match(request.strip()):   # everyone may talk to their own helper
                     log(f"ignored <{player}> {request}")
+                    continue
+                pure = pure_world(player)
+                if pure:                                     # a world without cheats: the bot does nothing there
+                    log(f"ignored <{player}> in {pure}: {request}")
+                    tell(player, f"I can't help you in {pure}: it is a world without cheats.")
                     continue
                 threading.Thread(target=handle, args=(player, request.strip()), daemon=True).start()
             p.wait()

@@ -195,7 +195,7 @@ class HavenPortals(private val plugin: JavaPlugin) : Listener {
     // --- Travelling ------------------------------------------------------------------------------------
 
     private fun tick() {
-        for (pl in Bukkit.getOnlinePlayers()) {
+        for (pl in Pure.players()) {
             val p = portals.firstOrNull { it.contains(pl.location.block) || it.contains(pl.eyeLocation.block) }
             if (p == null) { standing.remove(pl.uniqueId); justArrived.remove(pl.uniqueId); continue }
             if (pl.uniqueId in justArrived) continue

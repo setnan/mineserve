@@ -266,9 +266,183 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
 
     @EventHandler
     fun onChunk(e: ChunkLoadEvent) {
-        if (!e.isNewChunk || !Haven.isHaven(e.world)) return
+        if (!Haven.isHaven(e.world)) return
         val c = e.chunk
-        Bukkit.getScheduler().runTaskLater(Haven.plugin, Runnable { if (c.isLoaded) decorate(c) }, 2L)
+        if (e.isNewChunk) Bukkit.getScheduler().runTaskLater(Haven.plugin, Runnable { if (c.isLoaded) decorate(c) }, 2L)
+        else if (!c.persistentDataContainer.has(cavesKey) || !c.persistentDataContainer.has(fruitKey) || !c.persistentDataContainer.has(seaFruitKey)) oldCaves.add(c)   // land from before the caves were furnished
+    }
+
+    // --- The caves: what grows and glitters in them -------------------------------------------------------------------
+
+    private val cavesKey = Haven.key("caves_furnished")
+    private val fruitKey = Haven.key("caves_round_fruit")
+    private val seaFruitKey = Haven.key("sea_round_fruit")
+    private val oldCaves = ArrayDeque<Chunk>()
+
+    /** The first sea fruit were whole warped wart blocks on the sea floor: they become the small round fruit too. */
+    private fun roundSeaFruit(c: Chunk) {
+        c.persistentDataContainer.set(seaFruitKey, PersistentDataType.BYTE, 1)
+        val items = HavenItems.instance ?: return
+        val snap = c.getChunkSnapshot(false, false, false)
+        for (x in 0..15) for (z in 0..15) for (y in 3..HavenGenerator.SEA) {
+            if (snap.getBlockType(x, y, z) != Material.WARPED_WART_BLOCK) continue
+            val b = c.world.getBlockAt((c.x shl 4) + x, y, (c.z shl 4) + z)
+            if (b.getRelative(0, 1, 0).type == Material.WATER && b.getRelative(0, -1, 0).type.isSolid) items.seaFruit(b)
+        }
+    }
+
+    /**
+     * The first glow fruit were whole verdant froglights, some at the end of a vine. They become the small round fruit:
+     * where they stand, or on the floor under the vine they hung from.
+     */
+    private fun roundFruit(c: Chunk) {
+        c.persistentDataContainer.set(fruitKey, PersistentDataType.BYTE, 1)
+        val w = c.world
+        val items = HavenItems.instance ?: return
+        val bx = c.x shl 4
+        val bz = c.z shl 4
+        val low = HavenGenerator.ISLANDS_LOW
+        val snap = c.getChunkSnapshot(true, false, false)
+        for (x in 0..15) for (z in 0..15) for (y in low..snap.getHighestBlockYAt(x, z)) {
+            if (snap.getBlockType(x, y, z) != Material.VERDANT_FROGLIGHT) continue
+            val b = w.getBlockAt(bx + x, y, bz + z)
+            if (b.getRelative(0, -1, 0).type.isSolid) { items.glowFruit(b); continue }
+            b.setType(Material.AIR, false)                                    // it hung from a vine, or stood on another
+            var d = b.getRelative(0, -1, 0)
+            while (d.y > low && d.type.isAir) d = d.getRelative(0, -1, 0)
+            if (d.type.isSolid && d.type != Material.VERDANT_FROGLIGHT && d.getRelative(0, 1, 0).type.isAir) items.glowFruit(d.getRelative(0, 1, 0))
+        }
+    }
+    private val caveTask = Bukkit.getScheduler().runTaskTimer(Haven.plugin, Runnable {
+        repeat(3) {
+            val c = oldCaves.removeFirstOrNull() ?: return@Runnable
+            if (!c.isLoaded) return@repeat
+            if (!c.persistentDataContainer.has(cavesKey)) caves(c, false)
+            if (!c.persistentDataContainer.has(fruitKey)) roundFruit(c)
+            if (!c.persistentDataContainer.has(seaFruitKey)) roundSeaFruit(c)
+        }
+    }, 40L, 2L)
+    private val lining = setOf(Material.MOSS_BLOCK, Material.PRISMARINE, Material.DARK_PRISMARINE, Material.CALCITE, Material.AMETHYST_BLOCK,
+        Material.DIORITE, Material.SMOOTH_SANDSTONE, Material.QUARTZ_BLOCK, Material.SEA_LANTERN, Material.PEARLESCENT_FROGLIGHT)
+
+    /**
+     * Furnishes the caves of a chunk, each kind in its own way (HavenGenerator.caveTheme). Lush caves: glow berry
+     * vines and spore blossoms from the roof, azaleas, dripleaves and moss carpet on the floor. Crystal caves: amethyst
+     * clusters, and calcite icicles with a glowing tip. Water caves: pools with light in them, prismarine icicles and
+     * now and then a waterfall from the roof. In all of them, most in the lush ones, glow fruit (HavenItems.glowFruit):
+     * on the floor or on a little azalea bush, with a glow berry vine over it where the roof is high. Only between cave floors and roofs as the generator made them, so nothing grows in a
+     * house. Land made before this gets it the first time it is loaded again (without the pools and waterfalls).
+     */
+    private fun caves(c: Chunk, fresh: Boolean) {
+        c.persistentDataContainer.set(cavesKey, PersistentDataType.BYTE, 1)
+        if (fresh) { c.persistentDataContainer.set(fruitKey, PersistentDataType.BYTE, 1); c.persistentDataContainer.set(seaFruitKey, PersistentDataType.BYTE, 1) }
+        val w = c.world
+        val r = Haven.rnd
+        val bx = c.x shl 4
+        val bz = c.z shl 4
+        val low = HavenGenerator.ISLANDS_LOW + 2
+        if (listOf(0 to 0, 15 to 0, 0 to 15, 15 to 15, 8 to 8).all { (x, z) -> w.getHighestBlockYAt(bx + x, bz + z, org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES) < low + 8 }) return
+        val snap = c.getChunkSnapshot(false, false, false)
+        val patch = HavenGenerator.noise(w.seed).patch
+        for (x in 0..15) for (z in 0..15) {
+            val wx = bx + x
+            val wz = bz + z
+            val theme = HavenGenerator.caveTheme(w.seed, wx, wz)
+            var y = w.getHighestBlockYAt(wx, wz, org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES) - 4
+            while (y > low + 1) {
+                if (!snap.getBlockType(x, y, z).isAir) { y--; continue }
+                val roof = y + 1
+                var f = y
+                while (f > low && snap.getBlockType(x, f, z).isAir) f--
+                val len = roof - f - 1
+                y = f - 1
+                if (f <= low || len < 2 || len > 48 || snap.getBlockType(x, roof, z) !in lining || snap.getBlockType(x, f, z) !in lining) continue
+                furnish(w.getBlockAt(wx, f, wz), w.getBlockAt(wx, roof, wz), len, theme, fresh && x in 1..14 && z in 1..14,
+                    patch.noise(wx.toDouble(), wz.toDouble(), 0.5, 0.5, true))
+            }
+        }
+    }
+
+    private fun furnish(floor: Block, roof: Block, len: Int, theme: Int, wet: Boolean, patch: Double) {
+        val r = Haven.rnd
+        val on = floor.getRelative(0, 1, 0)
+        val under = roof.getRelative(0, -1, 0)
+        fun set(b: Block, m: Material) { if (b.type.isAir) b.setType(m, false) }
+        fun facing(b: Block, m: Material, face: org.bukkit.block.BlockFace) {
+            if (b.type.isAir) b.setBlockData((m.createBlockData() as org.bukkit.block.data.Directional).apply { facing = face }, false)
+        }
+        /** n blocks hanging from the roof, and the tip under them. */
+        fun icicle(n: Int, m: Material, tip: () -> Unit) { for (i in 0 until n) set(roof.getRelative(0, -1 - i, 0), m); tip() }
+
+        // glow fruit: on a vine from the roof, or on the floor, one or two high
+        val fruit = r.nextDouble()
+        val much = if (theme == 0) 0.022 else 0.008
+        if (fruit < much) {
+            if (!on.type.isAir) return
+            val items = HavenItems.instance ?: return
+            if (len >= 3 && r.nextBoolean()) {                               // on a little bush
+                on.setBlockData((Material.FLOWERING_AZALEA_LEAVES.createBlockData() as org.bukkit.block.data.type.Leaves).apply { isPersistent = true }, false)
+                items.glowFruit(on.getRelative(0, 1, 0))
+            } else items.glowFruit(on)
+            if (len >= 5) hang(under, 1 + r.nextInt(minOf(len - 4, 4)), false)   // and a glow berry vine over it, to find it by
+            return
+        }
+        val a = r.nextDouble()                                                // from the roof
+        val b = r.nextDouble()                                                // on the floor
+        val moss = floor.type == Material.MOSS_BLOCK
+        when (theme) {
+            0 -> {
+                if (a < 0.06) hang(under, 1 + r.nextInt(minOf(len - 1, 6)), false)
+                else if (a < 0.075) set(under, Material.SPORE_BLOSSOM)
+                if (moss && len >= 2 && under != on) when {
+                    b < 0.12 -> set(on, Material.MOSS_CARPET)
+                    b < 0.18 -> set(on, Material.SHORT_GRASS)
+                    b < 0.20 -> set(on, Material.FERN)
+                    b < 0.225 -> set(on, Material.AZALEA)
+                    b < 0.245 -> set(on, Material.FLOWERING_AZALEA)
+                    b < 0.265 -> set(on, Material.BIG_DRIPLEAF)
+                }
+            }
+            1 -> {
+                if (a < 0.03 && len >= 4) icicle(1 + r.nextInt(maxOf(1, len / 3)), Material.CALCITE) {
+                    (1 until len).firstOrNull { roof.getRelative(0, -1 - it, 0).type.isAir }?.let { facing(roof.getRelative(0, -1 - it, 0), Material.END_ROD, org.bukkit.block.BlockFace.DOWN) } }
+                else if (a < 0.045) facing(under, Material.AMETHYST_CLUSTER, org.bukkit.block.BlockFace.DOWN)
+                if (under != on) when {
+                    b < 0.05 -> facing(on, Material.AMETHYST_CLUSTER, org.bukkit.block.BlockFace.UP)
+                    b < 0.075 -> facing(on, Material.LARGE_AMETHYST_BUD, org.bukkit.block.BlockFace.UP)
+                    b < 0.085 && len >= 5 -> { set(on, Material.CALCITE); facing(on.getRelative(0, 1, 0), Material.AMETHYST_CLUSTER, org.bukkit.block.BlockFace.UP) }
+                    b < 0.10 && moss -> set(on, Material.MOSS_CARPET)
+                }
+            }
+            else -> {
+                // a pool: the floor itself becomes water where the rock around it holds it in
+                val held = wet && patch > 0.1 && floor.getRelative(0, -1, 0).type.isSolid &&
+                    listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1).all { (dx, dz) -> floor.getRelative(dx, 0, dz).let { it.type.isSolid || it.type == Material.WATER } }
+                if (held) {
+                    floor.setType(Material.WATER, false)
+                    if (r.nextDouble() < 0.12) floor.getRelative(0, -1, 0).setType(Material.SEA_LANTERN, false)
+                }
+                if (a < 0.02 && len >= 4) icicle(1 + r.nextInt(maxOf(1, len / 3)), Material.PRISMARINE) {
+                    (1 until len).firstOrNull { roof.getRelative(0, -1 - it, 0).type.isAir }?.let { set(roof.getRelative(0, -1 - it, 0), Material.SEA_LANTERN) } }
+                else if (a < 0.035) hang(under, 1 + r.nextInt(minOf(len - 1, 4)), false)
+                else if (wet && a < 0.038 && len >= 5) under.setType(Material.WATER, true)        // a waterfall: with physics, so it runs
+                if (!held && moss && b < 0.06 && under != on) set(on, Material.MOSS_CARPET)
+            }
+        }
+    }
+
+    /** A glow berry vine n long from the roof. */
+    private fun hang(under: Block, n: Int, fruit: Boolean) {
+        var b = under
+        for (i in 0 until n) {
+            if (!b.type.isAir || !b.getRelative(0, -1, 0).type.isAir) return
+            val tip = i == n - 1 && !fruit
+            val d = (if (tip) Material.CAVE_VINES else Material.CAVE_VINES_PLANT).createBlockData() as org.bukkit.block.data.type.CaveVinesPlant
+            d.isBerries = Haven.rnd.nextDouble() < 0.45
+            (d as? org.bukkit.block.data.type.CaveVines)?.age = 25                  // full grown: it does not creep down to the floor
+            b.setBlockData(d, false)
+            b = b.getRelative(0, -1, 0)
+        }
     }
 
     private fun decorate(c: Chunk) {
@@ -300,10 +474,7 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
             Haven.plugin.logger.info("Haven: a sea builder at ${f.x} ${f.y + 3} ${f.z}")
         }
         if (r.nextDouble() < 0.07) seaFruit(w, bx + r.nextInt(16), bz + r.nextInt(16))
-        repeat(3) {                                                          // glow fruit on the cave floors
-            if (r.nextDouble() < 0.4) caveFloor(w, bx + r.nextInt(16), bz + r.nextInt(16))?.let { f ->
-                if (f.type != Material.VERDANT_FROGLIGHT && f.type != Material.SEA_LANTERN) f.getRelative(0, 1, 0).setType(Material.VERDANT_FROGLIGHT, false) }
-        }
+        caves(c, true)
         when (biome) {
             "golden_plains" -> if (r.nextDouble() < 0.45) field(w, bx + 4 + r.nextInt(8), bz + 4 + r.nextInt(8))
             "crystal_valley" -> crystals(w, bx, bz)
@@ -458,7 +629,7 @@ class HavenWorld(private val items: HavenItems, private val magic: HavenMagic, p
                 if (b.type == Material.WATER) continue
                 val up = b.getRelative(0, 1, 0)
                 if ((b.type == Material.SAND || b.type == Material.PRISMARINE || b.type == Material.CALCITE) && up.type == Material.WATER)
-                    up.setType(Material.WARPED_WART_BLOCK, false)
+                    HavenItems.instance?.seaFruit(up)
                 break
             }
         }

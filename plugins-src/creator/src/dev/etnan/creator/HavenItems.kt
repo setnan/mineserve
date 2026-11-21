@@ -72,8 +72,8 @@ class HavenItems : Listener {
         NACRE(Material.PEARLESCENT_FROGLIGHT, "Nacre", NamedTextColor.WHITE, "Shines, and no monsters spawn within 16 blocks of it"),
         DAWN_SAPLING(Material.CHERRY_SAPLING, "Dawn Sapling", NamedTextColor.LIGHT_PURPLE, "Grows a pearl-white dawn tree"),
         SILVER_SAPLING(Material.BIRCH_SAPLING, "Silver Birch Sapling", NamedTextColor.GRAY, "Grows a birch with silver leaves"),
-        SEA_FRUIT(Material.APPLE, "Sea Fruit", NamedTextColor.AQUA, "Eat it: you are tiny for a minute\nSneak and right click the bottom of a sea or lake to plant it", "minecraft:blue_egg"),
-        GLOW_FRUIT(Material.APPLE, "Glow Fruit", NamedTextColor.GREEN, "Eat it: you grow huge for a minute\nSneak and right click moss or earth in the dark to plant it", "minecraft:slime_ball"),
+        SEA_FRUIT(Material.APPLE, "Sea Fruit", NamedTextColor.AQUA, "Eat it: you are tiny for a minute\nSneak and right click the bottom of a sea or lake to plant it", "supermann:sea_fruit"),
+        GLOW_FRUIT(Material.APPLE, "Glow Fruit", NamedTextColor.GREEN, "Eat it: you grow huge for a minute\nSneak and right click moss or earth in the dark to plant it", "supermann:glow_fruit"),
         STAR_DUST(Material.GLOWSTONE_DUST, "Star Dust", NamedTextColor.YELLOW, "Five of these and four light crystals make two starstones"),
         STARSTONE(Material.OCHRE_FROGLIGHT, "Starstone", NamedTextColor.YELLOW, "Build a portal frame of it and pour lava into it: a teleportal\nA world has two, and you walk from one to the other"),
         MAGIC_WOOL(Material.WHITE_WOOL, "Magic Wool", NamedTextColor.LIGHT_PURPLE, "Wool from the sheep of Haven: five and a light crystal make a flying carpet"),
@@ -99,6 +99,15 @@ class HavenItems : Listener {
             it.setData(DataComponentTypes.FOOD, io.papermc.paper.datacomponent.item.FoodProperties.food().nutrition(2).saturation(1.2f).canAlwaysEat(true).build())
         if (k == Kind.GOLDEN_RAMSHORN) it.setData(DataComponentTypes.RARITY, org.bukkit.inventory.ItemRarity.EPIC)
         return it
+    }
+
+    /** Items from before their look changed (the fruits were a slime ball and a blue egg) get the look of today when their owner comes in. */
+    @EventHandler
+    fun onJoin(e: org.bukkit.event.player.PlayerJoinEvent) {
+        for (it in e.player.inventory.contents) {
+            val model = kind(it)?.model ?: continue
+            if (it!!.getData(DataComponentTypes.ITEM_MODEL)?.asString() != model) it.setData(DataComponentTypes.ITEM_MODEL, Key.key(model))
+        }
     }
 
     fun kind(it: ItemStack?): Kind? {
@@ -233,7 +242,13 @@ class HavenItems : Listener {
                 drop(b, make(Kind.BARLEY_SEEDS, 1 + if (ripe) Haven.rnd.nextInt(3) else 0))
                 if (ripe) drop(b, make(Kind.GOLDEN_BARLEY, 2))
             }
+            marked == "seafruit" && b.type == Material.TUBE_CORAL_FAN -> {
+                e.isDropItems = false
+                drop(b, make(Kind.SEA_FRUIT, 1 + Haven.rnd.nextInt(3)))
+                b.world.getNearbyEntities(b.location.add(0.5, 0.5, 0.5), 0.6, 0.6, 0.6).filter { it.persistentDataContainer.has(seaFruitKey) }.forEach { it.remove() }
+            }
             (haven || marked == "seafruit") && b.type == Material.WARPED_WART_BLOCK -> { e.isDropItems = false; drop(b, make(Kind.SEA_FRUIT, 1 + Haven.rnd.nextInt(3))) }
+            marked == "glowfruit" && b.type == Material.PLAYER_HEAD -> { e.isDropItems = false; drop(b, make(Kind.GLOW_FRUIT, 1 + Haven.rnd.nextInt(3))) }
             (haven || marked == "glowfruit") && b.type == Material.VERDANT_FROGLIGHT -> { e.isDropItems = false; drop(b, make(Kind.GLOW_FRUIT, 1 + Haven.rnd.nextInt(3))) }
             marked == "gate" && b.type == Material.OCHRE_FROGLIGHT -> { e.isDropItems = false; if (e.player.gameMode != org.bukkit.GameMode.CREATIVE) drop(b, make(Kind.STARSTONE)) }
             haven && b.type == Material.GLOWSTONE && e.player.gameMode != org.bukkit.GameMode.CREATIVE -> { e.isDropItems = false; drop(b, make(Kind.STAR_DUST, 1 + Haven.rnd.nextInt(3 + fortune))) }
@@ -266,6 +281,56 @@ class HavenItems : Listener {
 
     fun plantAt(b: Block): String? = list(b)[pos(b)]
     private fun forget(b: Block) { val m = list(b); if (m.remove(pos(b)) != null) store(b, m) }
+    private val seaFruitKey = Haven.key("sea_fruit_show")
+    private val seaFruitHead by lazy {
+        ItemStack(Material.PLAYER_HEAD).also { it.setData(io.papermc.paper.datacomponent.DataComponentTypes.PROFILE,
+            io.papermc.paper.datacomponent.item.ResolvableProfile.resolvableProfile()
+                .skinPatch { p -> p.body(net.kyori.adventure.key.Key.key("supermann", "entity/skins/sea_fruit")) }.build()) }
+    }
+
+    /**
+     * A sea fruit growing at b (a block of water on the sea floor): a blue coral fan with a small round turquoise fruit
+     * on it. The fruit is an item display (a head block cannot stand in water without an air pocket around it), shining
+     * at full brightness; the fan is the block one breaks, remembered in the chunk.
+     */
+    fun seaFruit(b: Block) {
+        b.setBlockData((Material.TUBE_CORAL_FAN.createBlockData() as org.bukkit.block.data.Waterlogged).apply { isWaterlogged = true }, false)
+        remember(b, "seafruit")
+        val at = b.location.add(0.5, 0.42, 0.5)
+        at.yaw = Haven.rnd.nextInt(360).toFloat()
+        b.world.getNearbyEntities(b.location.add(0.5, 0.5, 0.5), 0.6, 0.6, 0.6).filter { it.persistentDataContainer.has(seaFruitKey) }.forEach { it.remove() }
+        b.world.spawn(at, org.bukkit.entity.ItemDisplay::class.java) { d ->
+            d.setItemStack(seaFruitHead)
+            d.brightness = org.bukkit.entity.Display.Brightness(15, 15)
+            d.transformation = org.bukkit.util.Transformation(org.joml.Vector3f(), org.joml.AxisAngle4f(), org.joml.Vector3f(1.15f, 1.15f, 1.15f), org.joml.AxisAngle4f())
+            d.isPersistent = true
+            d.persistentDataContainer.set(seaFruitKey, PersistentDataType.BYTE, 1)
+        }
+    }
+
+    /** A sea fruit whose coral fan is gone (washed away, pushed, blown up) goes too. */
+    fun strayFruit() {
+        for (w in Bukkit.getWorlds()) for (d in w.getEntitiesByClass(org.bukkit.entity.ItemDisplay::class.java)) {
+            if (!d.persistentDataContainer.has(seaFruitKey)) continue
+            val b = d.location.block
+            if (b.type != Material.TUBE_CORAL_FAN) { forget(b); d.remove() }
+        }
+    }
+
+    /**
+     * A glow fruit growing at b: a small round fruit (a player head with the glow fruit skin of the resource pack,
+     * fruit.py), remembered in the chunk so breaking it gives fruit.
+     */
+    fun glowFruit(b: Block) {
+        b.setType(Material.PLAYER_HEAD, false)
+        (b.state as? org.bukkit.block.Skull)?.let { s ->
+            s.setProfile(io.papermc.paper.datacomponent.item.ResolvableProfile.resolvableProfile()
+                .skinPatch { p -> p.body(net.kyori.adventure.key.Key.key("supermann", "entity/skins/glow_fruit")) }.build())
+            s.update(true, false)
+        }
+        remember(b, "glowfruit")
+    }
+
     fun remember(b: Block, what: String) { val m = list(b); m[pos(b)] = what; store(b, m) }
 
     @EventHandler(ignoreCancelled = true)

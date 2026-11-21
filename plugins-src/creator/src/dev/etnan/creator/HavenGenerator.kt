@@ -25,7 +25,7 @@ import kotlin.math.sqrt
  * y 100 and 140, with rolling hills, terraces and, in the cold parts, peaks up to about y 180. Above them drift small
  * islets, alone or in little groups, that the plugin gives waterfalls (HavenWorld). The islands are not dirt and stone
  * like the overworld: grass and moss over banded pearl rock, with an azure prismarine underside (see layer()).
- * Inside the bigger islands there are caves: winding tunnels and halls, lined with prismarine and lit by the same
+ * Inside the bigger islands there are caves (lush, crystal or water caves: see caveTheme): winding tunnels and halls, lined with prismarine and lit by the same
  * sea lanterns as the undersides, open to the cliffs and here and there to the sky.
  * Minecraft then places the trees, flowers, ores, coral and waterfalls of the Haven biomes (the haven datapack, gen.py).
  *
@@ -80,7 +80,14 @@ class HavenGenerator : ChunkGenerator() {
         fun caveAt(n: Noise, x: Int, y: Int, z: Int): Boolean {
             val a = n.tunnelA.noise(x.toDouble(), y * 1.7, z.toDouble(), 0.5, 0.5, true)
             val b = n.tunnelB.noise(x.toDouble(), y * 1.7, z.toDouble(), 0.5, 0.5, true)
-            return a * a + b * b < 0.014 || n.cavern.noise(x.toDouble(), y * 1.5, z.toDouble(), 0.5, 0.5, true) > 0.52
+            return a * a + b * b < 0.016 || n.cavern.noise(x.toDouble(), y * 1.5, z.toDouble(), 0.5, 0.5, true) > 0.47 ||
+                n.hall.noise(x.toDouble(), y * 1.15, z.toDouble(), 0.5, 0.5, true) > 0.56
+        }
+
+        /** What kind of cave lies under (x, z): 0 lush (moss, vines and blossoms), 1 crystal (amethyst and calcite), 2 water (prismarine and pools). */
+        fun caveTheme(seed: Long, x: Int, z: Int): Int {
+            val v = noise(seed).theme.noise(x.toDouble(), z.toDouble(), 0.5, 0.5, true)
+            return if (v > 0.2) 1 else if (v < -0.2) 2 else 0
         }
 
         /** A small island in the sky: the middle of its top and how wide it is. */
@@ -160,6 +167,8 @@ class HavenGenerator : ChunkGenerator() {
         val tunnelA = gen(0xCA7E1L, 1, 1.0 / 44)         // caves: winding tunnels where both of these are near zero
         val tunnelB = gen(0xCA7E2L, 1, 1.0 / 44)
         val cavern = gen(0xCA7E3L, 1, 1.0 / 52)          // and halls where this one is high
+        val hall = gen(0xCA7E5L, 1, 1.0 / 92)            // and now and then a great hall
+        val theme = gen(0xCA7E4L, 1, 1.0 / 150)          // lush caves, crystal caves and water caves
         val sink = gen(0x51C4L, 2, 1.0 / 30)             // where a cave may open to the sky
 
         /** What is the same all the way up a column: how high the island floats, how deep it hangs, how high it rises. */
@@ -305,9 +314,17 @@ class HavenGenerator : ChunkGenerator() {
             val turf = m == Material.GRASS_BLOCK || (y < h && !solid[x][z][y + 1])           // the land's own top stays as it is
             if (!turf) {
                 val r = chance(seed xor 0xCA7EL, bx + x, y, bz + z)
-                if (open(x, y + 1, z)) m = if (r < 0.7) Material.MOSS_BLOCK else if (r < 0.85) Material.PRISMARINE else m
-                else if (open(x, y - 1, z) || open(x + 1, y, z) || open(x - 1, y, z) || open(x, y, z + 1) || open(x, y, z - 1))
-                    m = if (r < 0.07) Material.SEA_LANTERN else if (r < 0.65) Material.PRISMARINE else m
+                val theme = caveTheme(seed, bx + x, bz + z)
+                if (open(x, y + 1, z)) m = when (theme) {                                    // underfoot
+                    1 -> if (r < 0.45) Material.CALCITE else if (r < 0.75) Material.AMETHYST_BLOCK else if (r < 0.9) Material.MOSS_BLOCK else m
+                    2 -> if (r < 0.5) Material.PRISMARINE else if (r < 0.72) Material.DARK_PRISMARINE else if (r < 0.9) Material.MOSS_BLOCK else m
+                    else -> if (r < 0.82) Material.MOSS_BLOCK else if (r < 0.9) Material.PRISMARINE else m
+                }
+                else if (open(x, y - 1, z) || open(x + 1, y, z) || open(x - 1, y, z) || open(x, y, z + 1) || open(x, y, z - 1)) m = when (theme) {   // walls and roofs
+                    1 -> if (r < 0.07) Material.PEARLESCENT_FROGLIGHT else if (r < 0.5) Material.AMETHYST_BLOCK else if (r < 0.8) Material.CALCITE else m
+                    2 -> if (r < 0.09) Material.SEA_LANTERN else if (r < 0.55) Material.PRISMARINE else if (r < 0.78) Material.DARK_PRISMARINE else m
+                    else -> if (r < 0.06) Material.SEA_LANTERN else if (r < 0.45) Material.MOSS_BLOCK else if (r < 0.7) Material.PRISMARINE else m
+                }
             }
             data.setBlock(x, ISLANDS_LOW + y, z, m)
         }

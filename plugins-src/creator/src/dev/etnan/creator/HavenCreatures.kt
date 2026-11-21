@@ -534,7 +534,7 @@ class HavenCreatures(private val items: HavenItems, private val armor: HavenArmo
         t == Material.MUD || t == Material.YELLOW_TERRACOTTA || t == Material.PALE_MOSS_BLOCK || t == Material.DIRT || t == Material.STONE
 
     /** The rock of the islands, which a cave builder may dig out. */
-    private fun rock(t: Material) = t == Material.DIORITE || t == Material.PRISMARINE || t == Material.SMOOTH_SANDSTONE || t == Material.QUARTZ_BLOCK ||
+    private fun rock(t: Material) = t == Material.DIORITE || t == Material.PRISMARINE || t == Material.DARK_PRISMARINE || t == Material.SMOOTH_SANDSTONE || t == Material.QUARTZ_BLOCK ||
         t == Material.SEA_LANTERN || t == Material.PEARLESCENT_FROGLIGHT || t == Material.SANDSTONE || t == Material.AMETHYST_BLOCK || t.name.endsWith("_ORE")
 
     /** What grows on the sea floor, which a sea builder clears away (it holds water). */

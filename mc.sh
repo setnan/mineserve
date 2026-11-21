@@ -247,6 +247,7 @@ Helpers:      <words> (anything that is not a command here goes to your own help
 Chat bridge:  chatbro [status|log|restart|stop|start|test <player> "wish"]   ("ai …" in chat)
 Worlds:       new-world <name> [normal|nether|the_end] [--seed N --world-type flat ...] | worlds
               sync-aliases   (writes /<worldname> for each world, also happens on restart)
+              Worlds without cheats: MC_PURE_WORLDS in .env (globus). In the game: /globus, /peaceful, /hard
 World:        import-world <zip|folder> | replace-world
 
 Permanent changes (version, seed, MODE, DIFFICULTY, OPS, WHITELIST, gamerules at startup):

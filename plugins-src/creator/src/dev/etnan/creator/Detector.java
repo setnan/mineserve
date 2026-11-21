@@ -129,7 +129,7 @@ final class Detector implements Listener {
         r.setIngredient('R', Material.REDSTONE);
         Bukkit.removeRecipe(recipeKey);
         Bukkit.addRecipe(r);
-        for (Player p : Bukkit.getOnlinePlayers()) p.discoverRecipe(recipeKey);
+        for (Player p : Pure.players()) p.discoverRecipe(recipeKey);
         Bukkit.getScheduler().runTaskTimer(plugin, this::guide, 20L, 5L);
     }
 
@@ -366,7 +366,7 @@ final class Detector implements Listener {
     }
 
     private void guide() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Pure.players()) {
             Target t = targets.get(p.getUniqueId());
             if (t == null || held(p) == null) continue;
             if (!t.loc.getWorld().equals(p.getWorld())) { stop(p, "The detector turned off because you changed worlds."); continue; }

@@ -693,7 +693,7 @@ final class BigBench implements Listener {
     }
 
     void shutdown() {
-        for (Player p : Bukkit.getOnlinePlayers())
+        for (Player p : Pure.players())
             if (p.getOpenInventory().getTopInventory().getHolder() instanceof Holder) p.closeInventory();
     }
 
@@ -947,7 +947,7 @@ final class BigBench implements Listener {
     }
 
     private void holdTick() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Pure.players()) {
             Super s = held(p);
             if (s != null) fire(s, "hold", new Ctx(p, null, p.getLocation(), null));
         }
@@ -1109,7 +1109,7 @@ final class BigBench implements Listener {
 
             @Override
             public Collection<String> suggest(CommandSourceStack src, String[] args) {
-                if (args.length >= 2) return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
+                if (args.length >= 2) return Pure.players().stream().map(Player::getName).toList();
                 String q = args.length == 0 ? "" : args[0].toLowerCase(Locale.ROOT);
                 List<String> out = new ArrayList<>(ids(args, true));
                 for (String k : supers.keySet()) if (k.startsWith(q) && !out.contains(k)) out.add(k);
@@ -1120,10 +1120,10 @@ final class BigBench implements Listener {
         r.register("superreload", "Reloads the super tools and sends the new resource pack (op only)", (BasicCommand) (src, args) -> {
             if (!op(src)) return;
             String msg = load();
-            for (Player p : Bukkit.getOnlinePlayers()) refreshItems(p);
-            pushPack(Bukkit.getOnlinePlayers(), true);
+            for (Player p : Pure.players()) refreshItems(p);
+            pushPack(Pure.players(), true);
             src.getSender().sendMessage(msg + ". The resource pack was sent to everyone online.");
-            for (Player p : Bukkit.getOnlinePlayers())
+            for (Player p : Pure.players())
                 if (p.getOpenInventory().getTopInventory().getHolder() instanceof Holder h) draw(h);
         });
         r.register("superlist", "Lists all super tools and whether they are approved", (BasicCommand) (src, args) -> {

@@ -81,7 +81,7 @@ final class XrayGoggles implements Listener {
         r.setIngredient('D', Material.DIAMOND);
         Bukkit.removeRecipe(recipeKey);
         Bukkit.addRecipe(r);
-        for (Player p : Bukkit.getOnlinePlayers()) p.discoverRecipe(recipeKey);
+        for (Player p : Pure.players()) p.discoverRecipe(recipeKey);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 40L, 10L);
     }
 
@@ -116,7 +116,7 @@ final class XrayGoggles implements Listener {
     }
 
     private void tick() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Pure.players()) {
             if (wearing(p)) update(p);
             else clear(p);
         }
@@ -165,7 +165,7 @@ final class XrayGoggles implements Listener {
     }
 
     void shutdown() {
-        for (Player p : Bukkit.getOnlinePlayers()) clear(p);
+        for (Player p : Pure.players()) clear(p);
     }
 
     @EventHandler

@@ -223,7 +223,7 @@ public final class Skins implements Listener {
         });
         r.register("sendpack", "Sends the current resource pack to everyone online (op)", (src, args) -> {
             if (!src.getSender().hasPermission("creator.sendpack")) { src.getSender().sendMessage("Only ops."); return; }
-            src.getSender().sendMessage("Sent the resource pack to " + sendPack(Bukkit.getOnlinePlayers()) + " players.");
+            src.getSender().sendMessage("Sent the resource pack to " + sendPack(Pure.players()) + " players.");
         });
     }
 }

@@ -100,6 +100,7 @@ public final class Creator extends JavaPlugin implements Listener {
     private HavenCreatures havenCreatures;
     private TheLion theLion;
     private Skins skins;
+    private PureGuard pure;
     private XrayGoggles xray;
     private File dataFile;
 
@@ -162,6 +163,9 @@ public final class Creator extends JavaPlugin implements Listener {
         new HavenMusic(havenWorld);
         for (Listener l : new Listener[] { havenItems, havenArmor, havenMagic, havenCreatures, havenWorld, havenWorlds, theLion, havenFruit, havenCarpet, teleportals, new WorldNames() })
             getServer().getPluginManager().registerEvents(l, this);
+        pure = new PureGuard(this);                                        // the worlds without cheats: see Pure.kt
+        getServer().getPluginManager().registerEvents(pure, this);
+        Pure.deafen(this);
         for (World w : Bukkit.getWorlds()) sleepRule(w);
         Bukkit.getScheduler().runTaskTimer(this, this::magnet, 20L, 4L);
         Bukkit.getScheduler().runTaskTimer(this, this::lys, 20L, 10L);
@@ -172,6 +176,7 @@ public final class Creator extends JavaPlugin implements Listener {
             skins.register(r);
             havenPortals.register(r);
             theLion.register(r);
+            pure.register(r);
             r.register("craft", "Crafting table (creator power)", List.of("c"), station("crafting table", p -> p.openWorkbench(null, true)));
             r.register("bigbench", "Big Bench: 5x5 crafting for super tools (creator power)", List.of("bb", "tool_bigbench"), station("Big Bench", bigBench::open));
             r.register("tool_anvil", "Anvil (creator power)", station("anvil", p -> p.openAnvil(null, true)));
@@ -195,7 +200,7 @@ public final class Creator extends JavaPlugin implements Listener {
                 @Override
                 public java.util.Collection<String> suggest(CommandSourceStack src, String[] args) {
                     String last = args.length == 0 ? "" : args[args.length - 1].toLowerCase();
-                    return Bukkit.getOnlinePlayers().stream().map(Player::getName).filter(n -> n.toLowerCase().startsWith(last)).toList();
+                    return Pure.players().stream().map(Player::getName).filter(n -> n.toLowerCase().startsWith(last)).toList();
                 }
             });
             r.register("tpaccept", "Accepts a teleport request", (BasicCommand) (src, args) -> tpaAnswer(src, true));
@@ -317,7 +322,7 @@ public final class Creator extends JavaPlugin implements Listener {
     }
 
     private boolean has(String power, Player p) {
-        return on.get(power).contains(p.getUniqueId());
+        return !Pure.isPure(p.getWorld()) && on.get(power).contains(p.getUniqueId());   // nobody has a power in a world without cheats
     }
 
     private void save() {
@@ -471,13 +476,13 @@ public final class Creator extends JavaPlugin implements Listener {
     static boolean restricted(World world) {
         String w = world.getName().toLowerCase(java.util.Locale.ROOT);
         for (String r : RESTRICTED) if (w.equals(r) || w.startsWith(r + "_")) return true;
-        return false;
+        return Pure.isPure(world);
     }
 
     /** Restricted for this player: a restricted world, unless they have creator.restricted.bypass (ops by default,
      *  and the temporary cheat group: ./mc.sh cheat <name>). */
     static boolean restricted(Player p) {
-        return restricted(p.getWorld()) && !p.hasPermission("creator.restricted.bypass");
+        return Pure.isPure(p.getWorld()) || restricted(p.getWorld()) && !p.hasPermission("creator.restricted.bypass");
     }
 
     private boolean superWorks(Player p) {
@@ -528,7 +533,7 @@ public final class Creator extends JavaPlugin implements Listener {
 
     /** Places a lantern behind the player where block light is 0 and the sky is (mostly) hidden: caves and indoors. */
     private void lys() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Pure.players()) {
             if (!has("light", p) || p.isDead() || p.isFlying() || p.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
             Block feet = p.getLocation().getBlock();
             if (feet.getLightFromBlocks() > 0 || feet.getLightFromSky() >= 8) continue;
@@ -557,7 +562,7 @@ public final class Creator extends JavaPlugin implements Listener {
     }
 
     private void magnet() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Pure.players()) {
             if (!has("magnet", p) || p.isSneaking() || p.isDead()) continue;
             for (Entity en : p.getNearbyEntities(8, 4, 8)) {
                 if (!(en instanceof Item it) || it.getPickupDelay() > 0) continue;

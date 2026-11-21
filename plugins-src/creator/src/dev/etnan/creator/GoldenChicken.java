@@ -90,7 +90,7 @@ public final class GoldenChicken implements Listener {
         soup.addIngredient(Material.CARROT);
         soup.addIngredient(Material.GLOW_BERRIES);
         Bukkit.addRecipe(soup);
-        for (Player p : Bukkit.getOnlinePlayers()) { p.discoverRecipe(blockKey); p.discoverRecipe(soupKey); }
+        for (Player p : Pure.players()) { p.discoverRecipe(blockKey); p.discoverRecipe(soupKey); }
         Bukkit.getScheduler().runTaskTimer(plugin, this::sparkle, 40L, 40L);
         Bukkit.getScheduler().runTaskTimer(plugin, this::lure, 10L, 10L);
     }
@@ -287,7 +287,7 @@ public final class GoldenChicken implements Listener {
 
     /** Golden chickens also follow a player who holds glow berries (besides the seeds every chicken follows). */
     private void lure() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Pure.players()) {
             if (p.getGameMode() == GameMode.SPECTATOR) continue;
             if (p.getInventory().getItemInMainHand().getType() != Material.GLOW_BERRIES && p.getInventory().getItemInOffHand().getType() != Material.GLOW_BERRIES) continue;
             for (Entity e : p.getNearbyEntities(10, 5, 10)) {

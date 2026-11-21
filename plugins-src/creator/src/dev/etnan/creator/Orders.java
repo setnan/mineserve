@@ -526,10 +526,10 @@ final class Orders {
                 if (args.length == 2 && args[0].equalsIgnoreCase("style")) return List.of("sword", "bow", "shield");
                 if (args.length == 2 && args[0].equalsIgnoreCase("routine")) return List.of("morning", "noon", "evening", "night", "every", "remove", "clear");
                 if (args.length == 2 && (args[0].equalsIgnoreCase("help") || args[0].equalsIgnoreCase("join") || args[0].equalsIgnoreCase("give")))
-                    return Bukkit.getOnlinePlayers().stream().map(Player::getName).filter(n -> !n.equals(src.getSender().getName())).toList();
+                    return Pure.players().stream().map(Player::getName).filter(n -> !n.equals(src.getSender().getName())).toList();
                 if (args.length == 2 && args[0].equalsIgnoreCase("skin")) {
                     List<String> s = new ArrayList<>(core.skins.names());
-                    Bukkit.getOnlinePlayers().forEach(pl -> s.add(pl.getName()));
+                    Pure.players().forEach(pl -> s.add(pl.getName()));
                     String part = args[1].toLowerCase(Locale.ROOT);          // "boy" also finds blueboy and coolboy
                     s.removeIf(n -> !n.toLowerCase(Locale.ROOT).contains(part));
                     return s;
